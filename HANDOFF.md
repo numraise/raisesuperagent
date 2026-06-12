@@ -14,6 +14,9 @@ character, `superagent 0.1.34 script active`, `/scriptevent superagent:label E2E
 `/scriptevent superagent:burst` returning `hit 0 mob(s)`. The same existing world also printed
 "At least one of your resource or behavior packs failed to load"; since the script was alive,
 separate world/pack cleanup may be needed before treating that message as a superagent failure.
+The GitHub release exists at
+`https://github.com/numraise/raisesuperagent/releases/tag/superagent-0.1.34` and includes the
+`superagent-0.1.34.mcaddon` asset.
 
 ---
 
