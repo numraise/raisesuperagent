@@ -7,6 +7,14 @@
 This document is the single source of truth for continuing work. Read it fully before
 changing anything — several non-obvious decisions were hard-won during real in-game testing.
 
+**Continuation note (2026-06-12):** local `main` was committed and pushed to
+`numraise/raisesuperagent` as `d185b77`, with tag `superagent-0.1.34`. MakeCode's GitHub API
+resolves the main import URL as version `0.1.34`. A quick in-game smoke test saw the visible
+character, `superagent 0.1.34 script active`, `/scriptevent superagent:label E2E-034`, and
+`/scriptevent superagent:burst` returning `hit 0 mob(s)`. The same existing world also printed
+"At least one of your resource or behavior packs failed to load"; since the script was alive,
+separate world/pack cleanup may be needed before treating that message as a superagent failure.
+
 ---
 
 ## 1. What this is

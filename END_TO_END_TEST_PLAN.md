@@ -1,8 +1,8 @@
 # superagent — แผนทดสอบ End-to-End ในเกมจริง
 
-เวอร์ชัน v0.1.22 | Minecraft Education 1.21.133 | ใช้กับเครื่องที่ติดตั้ง MC Education
+เวอร์ชัน v0.1.34 | Minecraft Education 1.21.133 | ใช้กับเครื่องที่ติดตั้ง MC Education
 
-> unit tests 48 เคสครอบคลุม "ตรรกะ + command string" แล้ว เอกสารนี้คือสิ่งที่ test มองไม่เห็น:
+> unit tests 54 เคสครอบคลุม "ตรรกะ + command string" แล้ว เอกสารนี้คือสิ่งที่ test มองไม่เห็น:
 > พฤติกรรม runtime จริง (block id, syntax คำสั่ง, entity API, permission)
 
 ---
@@ -11,12 +11,12 @@
 
 1. เปิด Minecraft Education → **Play → Create New → New** (หรือใช้ Flat world)
 2. ตั้งค่าโลก: **Cheats = ON**, **Default Game Mode = Survival**, **Player Permissions = Operator** (สำคัญ! บล็อกหลายตัวต้องใช้สิทธิ์ operator)
-3. **Behavior/Resource Packs**: ดับเบิลคลิก `dist/superagent-0.1.22.mcaddon` เพื่อ import → ในหน้าตั้งค่าโลก เปิดใช้ทั้ง **superagent Behavior** และ **superagent Resources**
-4. เข้าโลก แล้วยืนยันใน chat ว่าขึ้นข้อความ `superagent 0.1.22 script active` (= BP script ทำงาน)
+3. **Behavior/Resource Packs**: ดับเบิลคลิก `dist/superagent-0.1.34.mcaddon` เพื่อ import → ในหน้าตั้งค่าโลก เปิดใช้ทั้ง **superagent Behavior** และ **superagent Resources**
+4. เข้าโลก แล้วยืนยันใน chat ว่าขึ้นข้อความ `superagent 0.1.34 script active` (= BP script ทำงาน)
 
 ### โหลด MakeCode extension (เลือกวิธีใดวิธีหนึ่ง)
 
-- **วิธี A (GitHub):** push โค้ดขึ้น `https://github.com/numraise/superagent` → ใน Code Builder → MakeCode → Extensions → วาง URL
+- **วิธี A (GitHub):** ใช้ `https://github.com/numraise/raisesuperagent` → ใน Code Builder → MakeCode → Extensions → วาง URL
 - **วิธี B (paste):** สร้างโปรเจกต์ MakeCode ใหม่ → สลับเป็น JavaScript → วางเนื้อหา `superagent.ts` ทั้งไฟล์ → กลับมาโหมด Blocks
 
 ---
@@ -25,14 +25,16 @@
 
 | # | ทำ | คาดหวัง | ผ่าน? |
 |---|-----|---------|------|
-| 1.1 | เข้าโลก มองหาตัวละคร superagent ใกล้ตัว | มีคิวบ์ 1×1×1 ชื่อ `superagent [idle]` ลอยอยู่ มีอนุภาครอบตัว | ☐ |
+| 1.1 | เข้าโลก มองหาตัวละคร superagent ใกล้ตัว | มีคิวบ์ 1×1×1 ชื่อ `superagent [idle]` ลอยอยู่ | ☑ 2026-06-12 |
 | 1.2 | ตีตัวละครด้วยดาบ/ระเบิด TNT ข้าง ๆ | ตัวละครไม่ตาย ไม่เลือดลด (damage ถูกยกเลิก) | ☐ |
 | 1.3 | พิมพ์ `/scriptevent superagent:combat on` แล้วล่อ zombie เข้ามา | ตัวละครโจมตี zombie อัตโนมัติ มีอนุภาคไฟ + ป้ายเปลี่ยนเป็น `[guard]` | ☐ |
 | 1.4 | `/scriptevent superagent:combat off` | หยุดโจมตีอัตโนมัติ | ☐ |
-| 1.5 | `/scriptevent superagent:label Scout` | ป้ายเหนือหัวเปลี่ยนเป็น `Scout` | ☐ |
+| 1.5 | `/scriptevent superagent:label Scout` | ป้ายเหนือหัวเปลี่ยนเป็น `Scout` | ☑ 2026-06-12 (`E2E-034`) |
 | 1.6 | `/scriptevent superagent:freeze on` แล้วลองให้มันเดิน | ตัวละครหยุดนิ่ง · `freeze off` แล้วขยับได้อีก | ☐ |
+| 1.7 | `/scriptevent superagent:burst` | BP handler ตอบกลับและไม่ error | ☑ 2026-06-12 (`hit 0 mob(s)`) |
 
 > ถ้า 1.1 ไม่เห็นตัวละคร: เช็คว่าเปิด Resource pack แล้ว และ texture โหลด — ถ้าเห็นแต่กล่องไม่มี texture = ปัญหา RP/geometry
+> รอบ smoke test 2026-06-12 โลกเดิมมีข้อความ "At least one of your resource or behavior packs failed to load" แต่ยังเห็น `superagent 0.1.34 script active`, label handler และ burst handler ทำงาน จึงควรแยกตรวจ pack อื่นในโลกนั้นถ้าข้อความนี้ยังขึ้น.
 
 ---
 
