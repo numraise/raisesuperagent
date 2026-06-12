@@ -167,7 +167,7 @@ namespace superagent {
         return mobs.execute(mobs.target(LOCAL_PLAYER), superagentPosition, command)
     }
 
-    function selectSuperagentNear(position, radius: number) {
+    function selectSuperagentNear(position: Position, radius: number) {
         let selected = mobs.target(ALL_ENTITIES)
         selected.atCoordinate(position)
         selected.withinRadius(clamp(radius, 1, 256))
@@ -175,18 +175,18 @@ namespace superagent {
         return selected
     }
 
-    function teleportCharacterFrom(oldPosition, newPosition) {
+    function teleportCharacterFrom(oldPosition: Position, newPosition: Position) {
         mobs.teleportToPosition(selectSuperagentNear(oldPosition, 256), newPosition)
         mobs.teleportToPosition(selectSuperagentNear(newPosition, 32), newPosition)
     }
 
-    function teleportCharacterTo(position) {
+    function teleportCharacterTo(position: Position) {
         let oldPosition = superagentPosition
         superagentPosition = position
         teleportCharacterFrom(oldPosition, superagentPosition)
     }
 
-    function setSuperagentPosition(position) {
+    function setSuperagentPosition(position: Position) {
         teleportCharacterTo(position)
         ensureCharacter()
     }

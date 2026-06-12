@@ -68,13 +68,13 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+superagent\s*\{/, "const superagent = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|string|Superagent[A-Za-z0-9_]+)\s*\{/g, ") {")
+    .replace(/\)\s*:\s*(number|boolean|string|Position|Superagent[A-Za-z0-9_]+)\s*\{/g, ") {")
     .replace(/:\s*\(\(\)\s*=>\s*void\)\[\]/g, "")
     .replace(/:\s*\(\)\s*=>\s*void/g, "")
     .replace(/:\s*number\[\]/g, "")
     .replace(/:\s*boolean\[\]/g, "")
     .replace(/:\s*string\[\]/g, "")
-    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|Superagent[A-Za-z0-9_]+)/g, "$1$2");
+    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|Position|Superagent[A-Za-z0-9_]+)/g, "$1$2");
 
   const privateNames = new Set([
     "clamp",

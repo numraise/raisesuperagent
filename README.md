@@ -209,7 +209,7 @@ Import the add-on bundle:
 node tools/package-superagent-addon.js
 ```
 
-Then open `dist/superagent-0.1.23.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. After that, Member + Survival players can use the MakeCode extension blocks.
+Then open `dist/superagent-0.1.24.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. After that, Member + Survival players can use the MakeCode extension blocks.
 
 Auto-guard combat starts **off**. Turn it on from code with the `superagent auto guard on` block (or `/scriptevent superagent:combat on`) when you want the character to fight nearby hostiles automatically. Explicit attack blocks work at any time.
 
@@ -222,7 +222,7 @@ https://github.com/numraise/raisesuperagent
 For a pinned classroom build, use:
 
 ```text
-https://github.com/numraise/raisesuperagent#superagent-0.1.23
+https://github.com/numraise/raisesuperagent#superagent-0.1.24
 ```
 
 ## Test

@@ -7,7 +7,7 @@ const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const READY_TAG = "superagent.ready.0_1_23";
+const READY_TAG = "superagent.ready.0_1_24";
 const LABEL_PROPERTY = "superagent:label";
 const COMBAT_FLAG = "superagent:combat_enabled";
 const FREEZE_FLAG = "superagent:frozen";
@@ -484,7 +484,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.23 script active");
+      player.sendMessage("superagent 0.1.24 script active");
     }
   } catch (error) {
   }

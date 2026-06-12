@@ -1,0 +1,10 @@
+# GitHub Actions workflow is excluded because the push token used for this repo
+# lacks the `workflow` OAuth scope. Tests still run locally:
+#   node tests/run-superagent-tests.js
+.github/workflows/
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
