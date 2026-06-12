@@ -11,7 +11,8 @@ changing anything — several non-obvious decisions were hard-won during real in
 `numraise/raisesuperagent` as `d185b77`, with tag `superagent-0.1.34`. MakeCode's GitHub API
 resolves the main import URL as version `0.1.34`. A quick in-game smoke test saw the visible
 character, `superagent 0.1.34 script active`, `/scriptevent superagent:label E2E-034`, and
-`/scriptevent superagent:burst` returning `hit 0 mob(s)`. The same existing world also printed
+`/scriptevent superagent:burst` returning `hit 0 mob(s)`; the user later confirmed `burst`
+also reached `hit > 0` near a mob. The same existing world also printed
 "At least one of your resource or behavior packs failed to load"; since the script was alive,
 separate world/pack cleanup may be needed before treating that message as a superagent failure.
 The GitHub release exists at
@@ -222,9 +223,9 @@ changes). Importing a same-version pack often won't update — bump the version 
    optimistic; the entity stopped at the wall). Build/sense then act at the intended spot, not
    the entity's actual spot. Fine for teaching; a full fix means making the BP the single source
    of truth for position and reading it back (hard — no clean readback channel).
-2. **Temporary debug message** in the `burst` handler: `superagent burst → hit N mob(s)…`. Still
-   on. Remove it (and `attackAround` returning the count is only used for this) once combat
-   verification is done.
+2. **Temporary debug message** in the `burst` handler: `superagent burst → hit N mob(s)…`. Combat
+   verification is now done (`hit > 0` confirmed by the user), so this can be removed next
+   along with any return-count plumbing that exists only for the debug message.
 3. **`applyKnockback` signature** uses the 1.x 4-arg form
    `applyKnockback(dirX, dirZ, hStrength, vStrength)` with an `applyImpulse` fallback. If
    knockback doesn't land in-game, that's the place to adjust.

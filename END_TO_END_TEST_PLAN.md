@@ -32,10 +32,11 @@
 | 1.5 | `/scriptevent superagent:label Scout` | ป้ายเหนือหัวเปลี่ยนเป็น `Scout` | ☑ 2026-06-12 (`E2E-034`) |
 | 1.6 | `/scriptevent superagent:freeze on` แล้วลองให้มันเดิน | ตัวละครหยุดนิ่ง · `freeze off` แล้วขยับได้อีก | ☐ |
 | 1.7 | `/scriptevent superagent:burst` | BP handler ตอบกลับและไม่ error | ☑ 2026-06-12 (`hit 0 mob(s)`) |
+| 1.8 | `/scriptevent superagent:burst` ใกล้ม็อบ hostile | hit count มากกว่า 0 และ combat path ทำ damage ได้จริง | ☑ 2026-06-12 (user verified hit > 0) |
 
 > ถ้า 1.1 ไม่เห็นตัวละคร: เช็คว่าเปิด Resource pack แล้ว และ texture โหลด — ถ้าเห็นแต่กล่องไม่มี texture = ปัญหา RP/geometry
 > รอบ smoke test 2026-06-12 โลกเดิมมีข้อความ "At least one of your resource or behavior packs failed to load" แต่ยังเห็น `superagent 0.1.34 script active`, label handler และ burst handler ทำงาน จึงควรแยกตรวจ pack อื่นในโลกนั้นถ้าข้อความนี้ยังขึ้น.
-> รอบเดียวกัน `/summon zombie ~ ~ ~` ถูกโลกนี้ปฏิเสธด้วย "The summon command is not available in this world." จึงยังไม่ได้ยืนยัน `burst` แบบ hit > 0 ในโลกนี้ ต้องใช้โลกทดสอบที่เปิดคำสั่ง summon ได้ หรือใช้ spawn egg/ม็อบที่มีอยู่ใกล้ character.
+> รอบเดียวกัน `/summon zombie ~ ~ ~` ถูกโลกนี้ปฏิเสธด้วย "The summon command is not available in this world." ภายหลังผู้ใช้ยืนยัน `burst` แบบ hit > 0 แล้ว จึงถือว่า combat path หลักผ่าน และสามารถลบ debug message ของ `burst` ได้ในรอบถัดไป.
 
 ---
 
