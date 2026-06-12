@@ -1,13 +1,13 @@
 # superagent — Engineering Handoff
 
 **For:** GPT Codex 5.5 (or any engineer/agent picking this up)
-**Current version:** v0.1.34 · 54 unit tests passing · **verified running in-game** (Minecraft Education 1.21.133)
+**Current version:** v0.1.35 · 54 unit tests passing · v0.1.34 **verified running in-game** (Minecraft Education 1.21.133)
 **Last updated:** 2026-06-12
 
 This document is the single source of truth for continuing work. Read it fully before
 changing anything — several non-obvious decisions were hard-won during real in-game testing.
 
-**Continuation note (2026-06-12):** local `main` was committed and pushed to
+**Continuation note (2026-06-12):** v0.1.34 was committed and pushed to
 `numraise/raisesuperagent` as `d185b77`, with tag `superagent-0.1.34`. MakeCode's GitHub API
 resolves the main import URL as version `0.1.34`. A quick in-game smoke test saw the visible
 character, `superagent 0.1.34 script active`, `/scriptevent superagent:label E2E-034`, and
@@ -18,6 +18,9 @@ separate world/pack cleanup may be needed before treating that message as a supe
 The GitHub release exists at
 `https://github.com/numraise/raisesuperagent/releases/tag/superagent-0.1.34` and includes the
 `superagent-0.1.34.mcaddon` asset.
+After the user confirmed `burst` reached `hit > 0`, v0.1.35 removes the temporary burst hit-count
+chat diagnostic. Re-test the v0.1.35 add-on once installed; the expected script-active message is
+`superagent 0.1.35 script active`.
 
 ---
 
@@ -135,8 +138,9 @@ the pack works at all. **Re-introducing any of these will silently break the who
    loop (character spawn + name tag still work).
 
 **How to confirm the script is alive in-game:** on world join you should see chat
-`superagent 0.1.34 script active`, the cube should carry the name tag `superagent [idle]`, and
-`/scriptevent superagent:burst` near a hostile should print `superagent burst → hit N mob(s)…`.
+`superagent 0.1.35 script active`, the cube should carry the name tag `superagent [idle]`, and
+`/scriptevent superagent:burst` near a hostile should damage the mob without printing the old
+temporary hit-count diagnostic.
 
 ---
 
@@ -223,9 +227,8 @@ changes). Importing a same-version pack often won't update — bump the version 
    optimistic; the entity stopped at the wall). Build/sense then act at the intended spot, not
    the entity's actual spot. Fine for teaching; a full fix means making the BP the single source
    of truth for position and reading it back (hard — no clean readback channel).
-2. **Temporary debug message** in the `burst` handler: `superagent burst → hit N mob(s)…`. Combat
-   verification is now done (`hit > 0` confirmed by the user), so this can be removed next
-   along with any return-count plumbing that exists only for the debug message.
+2. **Burst debug message removed in v0.1.35.** Combat verification is done (`hit > 0` confirmed
+   by the user), and the temporary `superagent burst → hit N mob(s)…` chat diagnostic is gone.
 3. **`applyKnockback` signature** uses the 1.x 4-arg form
    `applyKnockback(dirX, dirZ, hStrength, vStrength)` with an `applyImpulse` fallback. If
    knockback doesn't land in-game, that's the place to adjust.

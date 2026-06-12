@@ -836,6 +836,8 @@ test("superagent script implements the special power handlers", () => {
   assert(script.includes('spawnEntity("minecraft:iron_golem"'));
   assert(script.includes('event.id === "superagent:lightning"'));
   assert(script.includes('event.id === "superagent:ally"'));
+  assert(script.includes('event.id !== "superagent:burst"'));
+  assert(!script.includes("superagent burst"));
 });
 
 test("superagent extension can label the character and toggle auto guard", () => {
