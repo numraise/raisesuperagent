@@ -1,13 +1,141 @@
-import { EntityComponentTypes, system, world } from "@minecraft/server";
-import { stepToward, parseGoto } from "./navmath.js";
-import { findPath } from "./pathfind.js";
+import { system, world } from "@minecraft/server";
+
+// ---- inlined nav + pathfinding helpers ------------------------------------
+// These are kept inline (rather than imported from navmath.js / pathfind.js) so
+// the behavior pack is a single self-contained script module. Some Education
+// builds fail to load packs that import secondary script files. The standalone
+// files remain for unit testing only.
+
+function stepToward(current, target, speed) {
+  const dx = target.x - current.x;
+  const dy = target.y - current.y;
+  const dz = target.z - current.z;
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (dist === 0 || dist <= speed) {
+    return { x: target.x, y: target.y, z: target.z, arrived: true };
+  }
+  const k = speed / dist;
+  return {
+    x: current.x + dx * k,
+    y: current.y + dy * k,
+    z: current.z + dz * k,
+    arrived: false
+  };
+}
+
+function parseGoto(message) {
+  if (typeof message !== "string") {
+    return null;
+  }
+  const parts = message.trim().split(/\s+/);
+  if (parts.length < 3) {
+    return null;
+  }
+  const x = Number(parts[0]);
+  const y = Number(parts[1]);
+  const z = Number(parts[2]);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+    return null;
+  }
+  return { x, y, z };
+}
+
+function pathKey(x, y, z) {
+  return x + "," + y + "," + z;
+}
+
+function pathHeuristic(x, y, z, gx, gy, gz) {
+  return Math.abs(x - gx) + Math.abs(y - gy) + Math.abs(z - gz);
+}
+
+function pathReconstruct(cameFrom, nodePos, goalKey, startKey) {
+  const path = [];
+  let k = goalKey;
+  while (k !== undefined && k !== startKey) {
+    path.unshift(nodePos[k]);
+    k = cameFrom[k];
+  }
+  return path;
+}
+
+function findPath(start, goal, isBlocked, maxNodes, maxRange) {
+  maxNodes = maxNodes || 400;
+  maxRange = maxRange || 24;
+  const sx = Math.round(start.x);
+  const sy = Math.round(start.y);
+  const sz = Math.round(start.z);
+  const gx = Math.round(goal.x);
+  const gy = Math.round(goal.y);
+  const gz = Math.round(goal.z);
+  if (Math.abs(gx - sx) > maxRange || Math.abs(gy - sy) > maxRange || Math.abs(gz - sz) > maxRange) {
+    return [];
+  }
+  if (isBlocked(gx, gy, gz)) {
+    return [];
+  }
+  const startKey = pathKey(sx, sy, sz);
+  const goalKey = pathKey(gx, gy, gz);
+  const open = [{ x: sx, y: sy, z: sz, g: 0, f: pathHeuristic(sx, sy, sz, gx, gy, gz), k: startKey }];
+  const cameFrom = {};
+  const gScore = {};
+  const closed = {};
+  const nodePos = {};
+  gScore[startKey] = 0;
+  nodePos[startKey] = { x: sx, y: sy, z: sz };
+  const dirs = [
+    [1, 0, 0], [-1, 0, 0],
+    [0, 1, 0], [0, -1, 0],
+    [0, 0, 1], [0, 0, -1]
+  ];
+  let expanded = 0;
+  while (open.length > 0 && expanded < maxNodes) {
+    let best = 0;
+    for (let i = 1; i < open.length; i++) {
+      if (open[i].f < open[best].f) {
+        best = i;
+      }
+    }
+    const current = open.splice(best, 1)[0];
+    if (current.k === goalKey) {
+      return pathReconstruct(cameFrom, nodePos, goalKey, startKey);
+    }
+    if (closed[current.k]) {
+      continue;
+    }
+    closed[current.k] = true;
+    expanded++;
+    for (const d of dirs) {
+      const nx = current.x + d[0];
+      const ny = current.y + d[1];
+      const nz = current.z + d[2];
+      if (Math.abs(nx - sx) > maxRange || Math.abs(ny - sy) > maxRange || Math.abs(nz - sz) > maxRange) {
+        continue;
+      }
+      if (isBlocked(nx, ny, nz)) {
+        continue;
+      }
+      const nk = pathKey(nx, ny, nz);
+      if (closed[nk]) {
+        continue;
+      }
+      const tentative = current.g + 1;
+      if (gScore[nk] === undefined || tentative < gScore[nk]) {
+        gScore[nk] = tentative;
+        cameFrom[nk] = current.k;
+        nodePos[nk] = { x: nx, y: ny, z: nz };
+        open.push({ x: nx, y: ny, z: nz, g: tentative, f: tentative + pathHeuristic(nx, ny, nz, gx, gy, gz), k: nk });
+      }
+    }
+  }
+  return [];
+}
 
 const SUPER_AGENT_ID = "superagent:superagent";
 const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const READY_TAG = "superagent.ready.0_1_24";
+const READY_TAG = "superagent.ready.0_1_33";
 const LABEL_PROPERTY = "superagent:label";
 const COMBAT_FLAG = "superagent:combat_enabled";
 const FREEZE_FLAG = "superagent:frozen";
@@ -26,6 +154,8 @@ const GUARD_TAG = "superagent.guard";
 const HOME_X_PROP = "superagent:home_x";
 const HOME_Y_PROP = "superagent:home_y";
 const HOME_Z_PROP = "superagent:home_z";
+const SPIN_PROP = "superagent:spin_until";
+const SPIN_TICKS = 18;
 const MAX_GUARDS = 4;
 const ATTACK_RADIUS = 8;
 const ATTACK_DAMAGE = 14;
@@ -281,9 +411,15 @@ function ensureOwnedSuperagent(player) {
     }
   }
   configureSuperagent(superagent, player);
-  for (const duplicate of owned) {
-    if (duplicate.id !== superagent.id) {
-      removeEntitySafe(duplicate);
+  // Remove every other nearby character that is mine or has no owner (leftovers
+  // from older summon-based builds). Guards and other players' characters stay.
+  const tag = ownerTag(player);
+  for (const other of allNearbySuperagents(player)) {
+    if (other.id === superagent.id || other.hasTag(GUARD_TAG)) {
+      continue;
+    }
+    if (other.hasTag(tag) || !isOwnedByAnyone(other)) {
+      removeEntitySafe(other);
     }
   }
   return superagent;
@@ -393,34 +529,14 @@ function spawnParticleAny(dimension, names, location) {
   return false;
 }
 
+// Kept deliberately light: a single subtle sparkle above the character so it
+// doesn't obscure the view. The character already shows a name tag and texture.
 function emitPresenceParticles(dimension, location, tick) {
-  const angle = tick * 0.28;
-  spawnParticleAny(dimension, CUSTOM_PRESENCE_PARTICLES, {
+  spawnParticleAny(dimension, ["minecraft:villager_happy"], {
     x: location.x,
-    y: location.y + 0.2,
+    y: location.y + 1.2,
     z: location.z
   });
-  spawnParticleAny(dimension, CUSTOM_PRESENCE_PARTICLES, {
-    x: location.x,
-    y: location.y + 1.35,
-    z: location.z
-  });
-  const offsets = [
-    { x: Math.cos(angle) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle) * PRESENCE_RADIUS },
-    { x: Math.cos(angle + Math.PI) * PRESENCE_RADIUS, y: 0.25, z: Math.sin(angle + Math.PI) * PRESENCE_RADIUS },
-    { x: Math.cos(angle + 1.57) * PRESENCE_RADIUS, y: 0.8, z: Math.sin(angle + 1.57) * PRESENCE_RADIUS },
-    { x: Math.cos(angle - 1.57) * PRESENCE_RADIUS, y: 0.8, z: Math.sin(angle - 1.57) * PRESENCE_RADIUS },
-    { x: Math.cos(angle + 0.8) * 0.55, y: 1.35, z: Math.sin(angle + 0.8) * 0.55 },
-    { x: Math.cos(angle + 3.9) * 0.55, y: 1.35, z: Math.sin(angle + 3.9) * 0.55 },
-    { x: 0, y: 1.75, z: 0 }
-  ];
-  for (const offset of offsets) {
-    spawnParticleAny(dimension, FALLBACK_PRESENCE_PARTICLES, {
-      x: location.x + offset.x,
-      y: location.y + offset.y,
-      z: location.z + offset.z
-    });
-  }
 }
 
 function attackAround(superagent, tick) {
@@ -433,6 +549,7 @@ function attackAround(superagent, tick) {
     }
   }
   emitAuraParticles(superagent.dimension, superagent.location, tick);
+  return targets.length;
 }
 
 function keepAlive(superagent) {
@@ -440,7 +557,7 @@ function keepAlive(superagent) {
     return;
   }
   try {
-    const health = superagent.getComponent(EntityComponentTypes.Health);
+    const health = superagent.getComponent("minecraft:health");
     if (health) {
       health.resetToMaxValue();
     }
@@ -484,7 +601,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.24 script active");
+      player.sendMessage("superagent 0.1.33 script active");
     }
   } catch (error) {
   }
@@ -661,6 +778,13 @@ function navStep(player, superagent) {
     }
     return;
   }
+  // Collision: never glide into a solid block — stop at the wall instead.
+  if (blockIsObstacle(superagent.dimension, Math.round(next.x), Math.round(next.y), Math.round(next.z))) {
+    if (!follow) {
+      clearNavTarget(superagent);
+    }
+    return;
+  }
   try {
     superagent.teleport({ x: next.x, y: next.y, z: next.z }, { facingLocation: target });
   } catch (error) {
@@ -708,14 +832,47 @@ function emitStatusParticle(superagent, status) {
   });
 }
 
+// Spin the character fast for a short window to show an attack.
+function startSpin(superagent) {
+  if (!superagent) {
+    return;
+  }
+  try {
+    superagent.setDynamicProperty(SPIN_PROP, system.currentTick + SPIN_TICKS);
+  } catch (error) {
+  }
+}
+
+function spinIfActive(superagent, tick) {
+  let until;
+  try {
+    until = superagent.getDynamicProperty(SPIN_PROP);
+  } catch (error) {
+    return;
+  }
+  if (typeof until !== "number" || tick > until) {
+    return;
+  }
+  const yaw = (tick * 100) % 360 - 180;
+  try {
+    superagent.setRotation({ x: 0, y: yaw });
+    return;
+  } catch (error) {
+  }
+  try {
+    superagent.teleport(superagent.location, { rotation: { x: 0, y: yaw } });
+  } catch (error) {
+  }
+}
+
 function tickSuperagent(player, superagent, tick) {
   configureSuperagent(superagent, player);
   keepAlive(superagent);
-  emitPresenceParticles(superagent.dimension, superagent.location, tick);
   navStep(player, superagent);
+  spinIfActive(superagent, tick);
   const status = currentStatus(superagent);
   applyLabelWithStatus(superagent, status);
-  emitStatusParticle(superagent, status);
+  // No idle particles: the character is shown by its model + name tag only.
   if (combatEnabled()) {
     attackAround(superagent, tick);
   }
@@ -753,13 +910,13 @@ function guardStep(player, guard, index, tick) {
     z: player.location.z + Math.sin(angle) * 2.5
   };
   const next = stepToward(guard.location, target, GUARD_SPEED);
-  if (!next.arrived && !isFrozen()) {
+  const guardBlocked = blockIsObstacle(guard.dimension, Math.round(next.x), Math.round(next.y), Math.round(next.z));
+  if (!next.arrived && !isFrozen() && !guardBlocked) {
     try {
       guard.teleport({ x: next.x, y: next.y, z: next.z }, { facingLocation: target });
     } catch (error) {
     }
   }
-  emitPresenceParticles(guard.dimension, guard.location, tick + index);
   if (combatEnabled()) {
     attackAround(guard, tick);
   }
@@ -786,11 +943,10 @@ function tickPlayer(player, tick) {
   tickGuards(player, tick);
 }
 
-world.beforeEvents.entityHurt.subscribe((event) => {
-  if (event.hurtEntity.hasTag(ROOT_TAG) || event.hurtEntity.typeId === SUPER_AGENT_ID) {
-    event.cancel = true;
-  }
-});
+// Note: the character's invincibility is handled by the entity's damage_sensor
+// (deals_damage: no) in superagent.json. We deliberately do NOT subscribe to a
+// damage before-event here because `world.beforeEvents.entityHurt` does not exist
+// in the 1.x stable API and referencing it throws at module load.
 
 function applyLabelFromEvent(player, message) {
   const owned = closestEntity(findOwnedSuperagents(player), player.location);
@@ -827,6 +983,165 @@ function handleGoto(player, message) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearPath(owned);
   setNavTarget(owned, target);
+}
+
+function stepDirOffset(dir) {
+  if (dir === "north") return { x: 0, y: 0, z: -1 };
+  if (dir === "south") return { x: 0, y: 0, z: 1 };
+  if (dir === "east") return { x: 1, y: 0, z: 0 };
+  if (dir === "west") return { x: -1, y: 0, z: 0 };
+  if (dir === "up") return { x: 0, y: 1, z: 0 };
+  if (dir === "down") return { x: 0, y: -1, z: 0 };
+  return { x: 0, y: 0, z: 0 };
+}
+
+// Grid step with collision: walk one block at a time and stop at the first
+// solid block so the character cannot pass through walls.
+function handleStep(player, message) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    return;
+  }
+  const parts = (message || "").trim().split(/\s+/);
+  const off = stepDirOffset(parts[0]);
+  let count = Number(parts[1]);
+  if (!Number.isFinite(count)) {
+    count = 1;
+  }
+  count = Math.max(1, Math.min(64, Math.round(count)));
+  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
+  clearNavTarget(owned);
+  clearPath(owned);
+  let cx = Math.floor(owned.location.x);
+  let cy = Math.floor(owned.location.y);
+  let cz = Math.floor(owned.location.z);
+  for (let i = 0; i < count; i++) {
+    const nx = cx + off.x;
+    const ny = cy + off.y;
+    const nz = cz + off.z;
+    if (blockIsObstacle(owned.dimension, nx, ny, nz)) {
+      break;
+    }
+    cx = nx;
+    cy = ny;
+    cz = nz;
+  }
+  try {
+    owned.teleport({ x: cx + 0.5, y: cy, z: cz + 0.5 });
+  } catch (error) {
+  }
+}
+
+// ---- Phase 13 special powers ----------------------------------------------
+
+function parseNumberArg(message, def, min, max) {
+  let n = Number((message || "").trim());
+  if (!Number.isFinite(n)) {
+    n = def;
+  }
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function powerAnchor(player) {
+  return ownedSuperagentForEvent(player) || player;
+}
+
+// Strike the nearest hostile with a lightning bolt.
+function handleLightning(player) {
+  const anchor = powerAnchor(player);
+  const dimension = anchor.dimension;
+  const hostiles = dimension.getEntities({ location: anchor.location, maxDistance: 14 }).filter(isAttackTarget);
+  const target = closestEntity(hostiles, anchor.location);
+  if (!target) {
+    return;
+  }
+  try {
+    dimension.spawnEntity("minecraft:lightning_bolt", target.location);
+  } catch (error) {
+  }
+}
+
+// Knock every nearby hostile away from the character.
+function handleBlast(player, message) {
+  const anchor = powerAnchor(player);
+  const radius = parseNumberArg(message, 6, 1, 16);
+  const origin = anchor.location;
+  for (const mob of anchor.dimension.getEntities({ location: origin, maxDistance: radius }).filter(isAttackTarget)) {
+    const dx = mob.location.x - origin.x;
+    const dz = mob.location.z - origin.z;
+    const len = Math.sqrt(dx * dx + dz * dz) || 1;
+    try {
+      mob.applyKnockback(dx / len, dz / len, 2.5, 0.6);
+    } catch (error) {
+      try {
+        mob.applyImpulse({ x: (dx / len) * 2, y: 0.5, z: (dz / len) * 2 });
+      } catch (error2) {
+      }
+    }
+  }
+}
+
+// Give the player a protective shield.
+function handleShield(player, message) {
+  const seconds = parseNumberArg(message, 15, 1, 120);
+  addEffectSafe(player, "resistance", seconds * 20, { amplifier: 2, showParticles: true });
+  addEffectSafe(player, "absorption", seconds * 20, { amplifier: 1, showParticles: true });
+}
+
+// Heal the player to full and grant regeneration.
+function handleHeal(player) {
+  addEffectSafe(player, "regeneration", 100, { amplifier: 2, showParticles: true });
+  try {
+    const health = player.getComponent("minecraft:health");
+    if (health) {
+      health.resetToMaxValue();
+    }
+  } catch (error) {
+  }
+}
+
+// Pull nearby dropped items to the player.
+function handleMagnet(player, message) {
+  const radius = parseNumberArg(message, 8, 1, 24);
+  for (const item of player.dimension.getEntities({ type: "minecraft:item", location: player.location, maxDistance: radius })) {
+    try {
+      item.teleport(player.location);
+    } catch (error) {
+    }
+  }
+}
+
+// Blink the player to the character (escape / travel).
+function handleBlink(player) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    return;
+  }
+  try {
+    player.teleport(owned.location);
+  } catch (error) {
+  }
+}
+
+// Summon a temporary iron golem ally that despawns after a while.
+function handleAlly(player, message) {
+  const seconds = parseNumberArg(message, 20, 5, 120);
+  let golem;
+  try {
+    golem = player.dimension.spawnEntity("minecraft:iron_golem", player.location);
+  } catch (error) {
+    return;
+  }
+  try {
+    golem.addTag("superagent.ally");
+  } catch (error) {
+  }
+  system.runTimeout(() => {
+    try {
+      golem.remove();
+    } catch (error) {
+    }
+  }, seconds * 20);
 }
 
 function handleGotoAgent(player) {
@@ -960,10 +1275,26 @@ function handleReset(player) {
   handleClearHome(player);
 }
 
+// Bring the player's character to the player's own position.
+function handleRecall(player) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    return;
+  }
+  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
+  clearNavTarget(owned);
+  clearPath(owned);
+  try {
+    owned.teleport({ x: player.location.x, y: player.location.y, z: player.location.z });
+  } catch (error) {
+  }
+}
+
 function isPlayerSource(entity) {
   return entity && entity.typeId === "minecraft:player";
 }
 
+try {
 system.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id === "superagent:combat") {
     handleCombatToggle(event.message);
@@ -1058,30 +1389,90 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     }
     return;
   }
-  if (event.id !== "superagent:burst" || !event.sourceEntity) {
+  if (event.id === "superagent:recall") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleRecall(event.sourceEntity);
+    }
     return;
   }
-  // On-demand burst is an explicit command from student/teacher code, so it
-  // fires regardless of the auto-combat toggle.
-  const anchor = event.sourceEntity;
-  const superagent = closestEntity(
-    anchor.dimension.getEntities({
-      type: SUPER_AGENT_ID,
-      location: anchor.location,
-      maxDistance: FOLLOW_RADIUS
-    }),
-    anchor.location
-  );
-  const attackAnchor = superagent || closestEntity(
-    anchor.dimension.getEntities({
-      location: anchor.location,
-      maxDistance: FOLLOW_RADIUS
-    }).filter(isAgent),
-    anchor.location
-  ) || anchor;
-  emitPresenceParticles(attackAnchor.dimension, attackAnchor.location, system.currentTick);
-  attackAround(attackAnchor, system.currentTick);
+  if (event.id === "superagent:step") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleStep(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:lightning") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleLightning(event.sourceEntity);
+    }
+    return;
+  }
+  if (event.id === "superagent:blast") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleBlast(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:shield") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleShield(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:heal") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleHeal(event.sourceEntity);
+    }
+    return;
+  }
+  if (event.id === "superagent:magnet") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleMagnet(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:blink") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleBlink(event.sourceEntity);
+    }
+    return;
+  }
+  if (event.id === "superagent:ally") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleAlly(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  if (event.id !== "superagent:burst") {
+    return;
+  }
+  // On-demand burst fires regardless of the auto-combat toggle. The source
+  // entity can be undefined depending on how the scriptevent was issued, so fall
+  // back to every player's own character.
+  const anchors = event.sourceEntity ? [event.sourceEntity] : world.getPlayers();
+  for (const anchor of anchors) {
+    const superagent = closestEntity(
+      anchor.dimension.getEntities({
+        type: SUPER_AGENT_ID,
+        location: anchor.location,
+        maxDistance: FOLLOW_RADIUS
+      }),
+      anchor.location
+    );
+    const attackAnchor = superagent || anchor;
+    emitPresenceParticles(attackAnchor.dimension, attackAnchor.location, system.currentTick);
+    const hits = attackAround(attackAnchor, system.currentTick);
+    startSpin(superagent);
+    // Temporary diagnostic so in-game testing can see the burst result.
+    try {
+      const where = superagent ? "character" : "player";
+      anchor.sendMessage("§bsuperagent burst → hit " + hits + " mob(s) from the " + where);
+    } catch (error) {
+    }
+  }
 });
+} catch (scriptEventError) {
+}
 
 system.runInterval(() => {
   for (const player of world.getPlayers()) {

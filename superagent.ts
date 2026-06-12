@@ -168,8 +168,10 @@ namespace superagent {
     }
 
     function selectSuperagentNear(position: Position, radius: number) {
+        // Select by type within a radius of the command source (the player).
+        // We avoid atCoordinate because the stored position can be relative, and
+        // Bedrock rejects relative coordinates inside a target selector.
         let selected = mobs.target(ALL_ENTITIES)
-        selected.atCoordinate(position)
         selected.withinRadius(clamp(radius, 1, 256))
         selected.addRule("type", "superagent:superagent")
         return selected
@@ -212,11 +214,29 @@ namespace superagent {
     }
 
     function ensureCharacter() {
-        runAtSuperagent("execute unless entity @e[type=superagent:superagent,r=2] run summon superagent:superagent ~ ~ ~")
-        mobs.teleportToPosition(selectSuperagentNear(superagentPosition, 256), superagentPosition)
-        runAtSuperagent("effect @e[type=superagent:superagent,r=2,c=1] resistance 10 255 true")
-        runAtSuperagent("effect @e[type=superagent:superagent,r=2,c=1] fire_resistance 10 1 true")
+        // The behavior pack spawns, protects and positions the character. We no
+        // longer force-teleport it here because that ignored block collision and
+        // would undo collision-aware moves. Just refresh the visual pulse.
         showCharacterPulse()
+    }
+
+    function directionName(direction: SuperagentMoveDirection): string {
+        if (direction == SuperagentMoveDirection.East) {
+            return "east"
+        }
+        if (direction == SuperagentMoveDirection.South) {
+            return "south"
+        }
+        if (direction == SuperagentMoveDirection.West) {
+            return "west"
+        }
+        if (direction == SuperagentMoveDirection.Up) {
+            return "up"
+        }
+        if (direction == SuperagentMoveDirection.Down) {
+            return "down"
+        }
+        return "north"
     }
 
     function showCharacterPulse() {
@@ -256,12 +276,12 @@ namespace superagent {
     }
 
     function attackCommandBurst(strength: number) {
-        let damage = 8 + strength * 3
+        // Particles run as the player (no selector). The actual damage + the
+        // spin animation are handled by the behavior pack via this scriptevent.
         runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
         runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
-        runAtSuperagent("effect @e[family=monster,r=8] slowness 3 1 false")
-        runAtSuperagent("effect @e[family=monster,r=8] weakness 3 0 false")
-        runAtSuperagent("damage @e[family=monster,r=8] " + damage + " entity_attack")
+        runAtAgent("scriptevent superagent:burst")
+        lastBurstCount += strength
     }
 
     function ensureAuraLoop() {
@@ -442,16 +462,7 @@ namespace superagent {
         for (let i = 0; i < rounds; i++) {
             ensureCharacter()
             auraPulseCommands()
-            attackDirection(FORWARD, hits)
-            attackDirection(RIGHT, hits)
-            attackDirection(BACK, hits)
-            attackDirection(LEFT, hits)
-            if (style == SuperagentBurstStyle.Vertical || style == SuperagentBurstStyle.Sphere) {
-                attackDirection(UP, hits)
-                attackDirection(DOWN, hits)
-            }
             attackCommandBurst(hits)
-            pulse(style)
         }
     }
 
@@ -487,21 +498,11 @@ namespace superagent {
         ensureAuraLoop()
         rounds = clamp(rounds, 1, 16)
         strength = clamp(strength, 1, 5)
+        let power = mode == SuperagentSmartMode.Emergency ? strength + 1 : strength
         for (let i = 0; i < rounds; i++) {
             ensureCharacter()
             auraPulseCommands()
-            if (mode == SuperagentSmartMode.Emergency) {
-                smartRing(strength + 1, true, true)
-                showShieldPulse()
-            } else if (mode == SuperagentSmartMode.Chase) {
-                attackDirection(FORWARD, strength + 2)
-                smartRing(strength, false, false)
-                showRingPulse()
-            } else {
-                smartRing(strength, true, false)
-                showShieldPulse()
-            }
-            attackCommandBurst(strength)
+            attackCommandBurst(power)
         }
     }
 
@@ -538,6 +539,16 @@ namespace superagent {
     }
 
     /**
+     * Bring the visible superagent character to the player's own position.
+     */
+    //% blockId=superagent_spawn_at_player block="superagent spawn at player"
+    //% group="Control"
+    export function spawnAtPlayer() {
+        followingAgent = false
+        runAtAgent("scriptevent superagent:recall")
+    }
+
+    /**
      * Recall the visible superagent character back to the Agent.
      */
     //% blockId=superagent_recall_to_agent block="superagent recall to agent"
@@ -554,7 +565,11 @@ namespace superagent {
     //% group="Control"
     export function moveCharacter(direction: SuperagentMoveDirection, blocks: number) {
         followingAgent = false
-        setSuperagentPosition(positions.add(superagentPosition, directionOffset(direction, blocks)))
+        blocks = clamp(blocks, 1, 32)
+        // Track the intended position for build/sense continuity, but let the
+        // behavior pack do the actual stepping with block collision.
+        superagentPosition = positions.add(superagentPosition, directionOffset(direction, blocks))
+        runAtAgent("scriptevent superagent:step " + directionName(direction) + " " + blocks)
     }
 
     /**
@@ -587,13 +602,12 @@ namespace superagent {
     export function attackFromCharacter(radius: number, strength: number) {
         radius = clamp(radius, 1, 16)
         strength = clamp(strength, 1, 8)
-        let damage = 8 + strength * 3
         ensureCharacter()
         runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
         runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
-        runAtSuperagent("effect @e[family=monster,r=" + radius + "] slowness 3 1 false")
-        runAtSuperagent("effect @e[family=monster,r=" + radius + "] weakness 3 0 false")
-        runAtSuperagent("damage @e[family=monster,r=" + radius + "] " + damage + " entity_attack")
+        // Delegate the actual damage to the behavior pack (script API, reliable on
+        // Education) instead of @e selector commands that the parser rejects.
+        runAtAgent("scriptevent superagent:burst")
     }
 
     /**
@@ -1796,5 +1810,72 @@ namespace superagent {
         depth = clamp(depth, 1, 16)
         ensureCharacter()
         runAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(toBlock) + " replace " + blockId(fromBlock))
+    }
+
+    /**
+     * Special power: strike the nearest hostile with a lightning bolt.
+     */
+    //% blockId=superagent_lightning block="superagent lightning strike"
+    //% group="Powers"
+    export function lightningStrike() {
+        runAtAgent("scriptevent superagent:lightning")
+    }
+
+    /**
+     * Special power: knock all nearby hostiles away from the character.
+     */
+    //% blockId=superagent_force_blast block="superagent force blast radius %radius"
+    //% radius.min=1 radius.max=16
+    //% group="Powers"
+    export function forceBlast(radius: number) {
+        runAtAgent("scriptevent superagent:blast " + clamp(radius, 1, 16))
+    }
+
+    /**
+     * Special power: give the player a protective shield for a few seconds.
+     */
+    //% blockId=superagent_shield_player block="superagent shield player for %seconds s"
+    //% seconds.min=1 seconds.max=120
+    //% group="Powers"
+    export function shieldPlayer(seconds: number) {
+        runAtAgent("scriptevent superagent:shield " + clamp(seconds, 1, 120))
+    }
+
+    /**
+     * Special power: heal the player to full and grant regeneration.
+     */
+    //% blockId=superagent_heal_player block="superagent heal player"
+    //% group="Powers"
+    export function healPlayer() {
+        runAtAgent("scriptevent superagent:heal")
+    }
+
+    /**
+     * Special power: pull nearby dropped items to the player.
+     */
+    //% blockId=superagent_magnet block="superagent magnet items radius %radius"
+    //% radius.min=1 radius.max=24
+    //% group="Powers"
+    export function magnetItems(radius: number) {
+        runAtAgent("scriptevent superagent:magnet " + clamp(radius, 1, 24))
+    }
+
+    /**
+     * Special power: blink the player to the character (escape / travel).
+     */
+    //% blockId=superagent_blink_player block="superagent blink player to character"
+    //% group="Powers"
+    export function blinkPlayer() {
+        runAtAgent("scriptevent superagent:blink")
+    }
+
+    /**
+     * Special power: summon a temporary iron golem ally that fights for you.
+     */
+    //% blockId=superagent_summon_ally block="superagent summon ally for %seconds s"
+    //% seconds.min=5 seconds.max=120
+    //% group="Powers"
+    export function summonAlly(seconds: number) {
+        runAtAgent("scriptevent superagent:ally " + clamp(seconds, 5, 120))
     }
 }

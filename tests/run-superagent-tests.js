@@ -105,6 +105,7 @@ function transformMakeCodeTs(source) {
     "senseMoveDirection",
     "senseOffset",
     "mobSelector",
+    "directionName",
     "evaluateWatcher",
     "pollWatchers",
     "ensureWatchLoop",
@@ -250,41 +251,44 @@ function test(name, fn) {
   }
 }
 
-test("superagent attack aura performs ring attacks and pulse", () => {
+test("superagent attack aura delegates damage to the behavior pack and spins (no Agent swing)", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.attackAura(2, 3, 0);
-  assert.strictEqual(toolkit.reportLastBurstCount(), 24);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length, 6);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 0);
-  assert(agent.calls.some((call) => call[0] === "turn"));
+  assert.strictEqual(toolkit.reportLastBurstCount(), 6);
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.filter((command) => command.includes("scriptevent superagent:burst")).length >= 2);
+  assert(!agent.calls.some((call) => call[0] === "attack")); // the Agent must not swing
 });
 
-test("superagent power burst attacks all six directions and collects drops", () => {
+test("superagent power burst bursts and collects drops without Agent swings", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.powerBurst(1, 2);
-  assert.strictEqual(toolkit.reportLastBurstCount(), 12);
-  assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.DOWN));
+  assert.strictEqual(toolkit.reportLastBurstCount(), 2);
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
   assert(agent.calls.some((call) => call[0] === "collectAll"));
+  assert(!agent.calls.some((call) => call[0] === "attack"));
 });
 
-test("superagent smart sweep prioritizes forward pressure and vertical guard", () => {
+test("superagent smart sweep bursts without Agent swings", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.smartSweep(1, 2, 0);
-  assert.strictEqual(toolkit.reportLastBurstCount(), 12);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.FORWARD).length, 3);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.UP).length, 2);
-  assert(agent.calls.some((call) => call[0] === "turn"));
+  assert.strictEqual(toolkit.reportLastBurstCount(), 2);
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
+  assert(!agent.calls.some((call) => call[0] === "attack"));
 });
 
-test("superagent overdrive uses emergency six-direction pressure and collects drops", () => {
+test("superagent overdrive uses emergency power and collects drops", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.overdrive(1, 1);
-  assert.strictEqual(toolkit.reportLastBurstCount(), 13);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "attack" && call[1] === Direction.BACK).length, 2);
+  assert.strictEqual(toolkit.reportLastBurstCount(), 2); // emergency bumps strength 1 -> 2
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
   assert(agent.calls.some((call) => call[0] === "collectAll"));
 });
 
@@ -293,7 +297,9 @@ test("superagent extension emits visible aura and sync commands at the Agent pos
   const toolkit = loadSuperagent(agent);
   toolkit.keepAuraOn();
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("summon superagent:superagent")));
+  // Spawning is delegated to the behavior pack; the extension cleans up legacy
+  // markers and positions the character via teleport + particles.
+  assert(commands.some((command) => command.includes("kill @e[type=minecraft:armor_stand")));
   assert(!commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
   assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition"));
   assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
@@ -309,11 +315,13 @@ test("superagent extension controls an independent one-block character position"
   toolkit.attackFromCharacter(5, 4);
   const commands = agent.commandCalls.map((call) => call[3]);
   const positions = agent.commandCalls.map((call) => call[2]);
-  assert(commands.some((command) => command.includes("summon superagent:superagent")));
+  assert(commands.some((command) => command.includes("particle superagent:attack_burst")));
   assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
-  assert(commands.some((command) => command.includes("damage @e[family=monster,r=5] 20 entity_attack")));
+  // Damage is delegated to the behavior pack via a scriptevent (reliable on Education).
+  assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
   assert(!commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
-  assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition" && call[2].x === 13 && call[2].y === 20 && call[2].z === 30));
+  // Grid move is a collision-aware step handled by the behavior pack.
+  assert(commands.some((command) => command.includes("scriptevent superagent:step east 3")));
   assert(agent.mobCalls.some((call) => call[1].rules.some((rule) => rule[0] === "type" && rule[1] === "superagent:superagent")));
   assert(positions.some((position) => position.x === 10 && position.y === 20 && position.z === 30));
 });
@@ -324,7 +332,7 @@ test("superagent extension can run and stop a follow-agent loop", () => {
   toolkit.followAgentOn();
   toolkit.followAgentOff();
   assert(agent.calls.some((call) => call[0] === "forever"));
-  assert(agent.commandCalls.some((call) => call[3].includes("summon superagent:superagent")));
+  assert(agent.commandCalls.some((call) => call[3].includes("particle superagent:agent_aura")));
 });
 
 test("superagent extension provides many smart movement commands", () => {
@@ -340,7 +348,9 @@ test("superagent extension provides many smart movement commands", () => {
   toolkit.zigzag(1, 6);
   toolkit.spiralSearch(2, 3);
   toolkit.smartMove(0, 5, 2);
-  assert(agent.mobCalls.filter((call) => call[0] === "teleportToPosition").length >= 20);
+  // Grid moves are collision-aware steps; orbit/evade still reposition directly.
+  assert(agent.commandCalls.some((call) => call[3].includes("scriptevent superagent:step")));
+  assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition"));
   assert(agent.commandCalls.some((call) => call[3].includes("particle superagent:attack_burst")));
 });
 
@@ -367,7 +377,7 @@ test("superagent reactive helpers sense first then act", () => {
   assert.strictEqual(toolkit.defendIfThreatened(6, 3), true);
   assert.strictEqual(toolkit.advanceUntilBlocked(0, 5), 5);
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("damage @e[family=monster,r=6]")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
   assert(commands.some((command) => command.includes("testforblock")));
 });
 
@@ -424,7 +434,8 @@ test("navmath parseGoto reads coordinates and rejects junk", () => {
 
 test("superagent script wires smooth glide navigation", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('import { stepToward, parseGoto } from "./navmath.js"'));
+  assert(script.includes("function stepToward"));
+  assert(script.includes("function parseGoto"));
   assert(script.includes("function navStep"));
   assert(script.includes("stepToward(superagent.location, target, MOVE_SPEED)"));
   assert(script.includes("facingLocation: target"));
@@ -665,7 +676,7 @@ test("pathfind A* returns no path when the goal is sealed off", () => {
 
 test("superagent script wires A* pathfinding navigation", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('import { findPath } from "./pathfind.js"'));
+  assert(script.includes("function findPath"));
   assert(script.includes("function blockIsObstacle"));
   assert(script.includes("function computeAndStorePath"));
   assert(script.includes("function stepAlongPath"));
@@ -746,6 +757,42 @@ test("superagent script recomputes its A* path when terrain changes", () => {
   assert(script.includes("computeAndStorePath(superagent, goal)"));
 });
 
+test("superagent special powers send the right scriptevents", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.lightningStrike();
+  toolkit.forceBlast(6);
+  toolkit.shieldPlayer(15);
+  toolkit.healPlayer();
+  toolkit.magnetItems(8);
+  toolkit.blinkPlayer();
+  toolkit.summonAlly(20);
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:lightning")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:blast 6")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:shield 15")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:heal")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:magnet 8")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:blink")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:ally 20")));
+});
+
+test("superagent script implements the special power handlers", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handleLightning"));
+  assert(script.includes('spawnEntity("minecraft:lightning_bolt"'));
+  assert(script.includes("function handleBlast"));
+  assert(script.includes("applyKnockback"));
+  assert(script.includes("function handleShield"));
+  assert(script.includes("function handleHeal"));
+  assert(script.includes("function handleMagnet"));
+  assert(script.includes("function handleBlink"));
+  assert(script.includes("function handleAlly"));
+  assert(script.includes('spawnEntity("minecraft:iron_golem"'));
+  assert(script.includes('event.id === "superagent:lightning"'));
+  assert(script.includes('event.id === "superagent:ally"'));
+});
+
 test("superagent extension can label the character and toggle auto guard", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
@@ -764,7 +811,7 @@ test("add-on manifests target Minecraft Education 1.21.133 compatible engine and
   assert.deepStrictEqual(bp.header.min_engine_version, [1, 21, 100]);
   assert.deepStrictEqual(rp.header.min_engine_version, [1, 21, 100]);
   assert(bp.modules.some((module) => module.type === "script" && module.entry === "scripts/main.js"));
-  assert(bp.dependencies.some((dependency) => dependency.module_name === "@minecraft/server" && dependency.version === "2.4.0"));
+  assert(bp.dependencies.some((dependency) => dependency.module_name === "@minecraft/server" && dependency.version === "1.17.0"));
   assert(bp.dependencies.some((dependency) => dependency.uuid === rp.header.uuid));
 });
 
@@ -824,8 +871,9 @@ test("superagent script protects and powers MakeCode-controlled character withou
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes('const SUPER_AGENT_ID = "superagent:superagent"'));
   assert(script.includes('const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand"'));
-  assert(script.includes("world.beforeEvents.entityHurt.subscribe"));
-  assert(script.includes("event.cancel = true"));
+  // Invincibility is handled by the entity's damage_sensor, not a before-event
+  // (world.beforeEvents.entityHurt does not exist in the 1.x stable API).
+  assert(!script.includes("world.beforeEvents.entityHurt.subscribe"));
   assert(script.includes("target.applyDamage(ATTACK_DAMAGE"));
   assert(script.includes("dimension.spawnParticle"));
   assert(script.includes("function tickSuperagent"));
@@ -839,8 +887,9 @@ test("superagent script keeps one owner-scoped character and does not self-match
   assert(script.includes("function ensureOwnedSuperagent"));
   assert(script.includes("function findOwnedSuperagents"));
   assert(script.includes("function isOwnedByAnyone"));
-  // dedupe is scoped to this player's owned copies only
-  assert(script.includes("for (const duplicate of owned)"));
+  // dedupe removes this player's extra characters and unowned leftovers,
+  // but never guards or another player's character
+  assert(script.includes("if (other.hasTag(tag) || !isOwnedByAnyone(other))"));
   // isAgent must no longer match by substring (which caught superagent:superagent)
   assert(!script.includes('typeId.indexOf("agent")'));
   assert(script.includes("if (entity.typeId === SUPER_AGENT_ID) {"));
@@ -870,21 +919,15 @@ test("superagent script prioritizes dangerous nearby targets with stronger debuf
   assert(script.includes("target.applyDamage(ATTACK_DAMAGE + (isHighThreat(target) ? 4 : 0))"));
 });
 
-test("superagent script emits a visible presence effect around the controlled character", () => {
+test("superagent script keeps the idle character clean (no per-tick particles)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes("const PRESENCE_RADIUS = 1.35"));
-  assert(script.includes("CUSTOM_PRESENCE_PARTICLES"));
-  assert(script.includes("FALLBACK_PRESENCE_PARTICLES"));
-  assert(script.includes("function emitPresenceParticles"));
-  assert(script.includes("function refreshAgentVisibleEffects"));
   assert(script.includes("function cleanupLegacyVisibleMarkers"));
   assert(script.includes("function spawnParticleAny"));
   assert(script.includes("function spawnParticleCommand"));
-  assert(script.includes('"superagent:agent_aura"'));
-  assert(script.includes('"minecraft:totem_particle"'));
   assert(!script.includes('addEffectSafe(superagent, "invisibility"'));
   assert(script.includes("function tickSuperagent"));
-  assert(script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
+  // The idle character must NOT spew presence/status particles every tick.
+  assert(!script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
 });
 
 test("superagent script does not depend on command selectors finding Education Agent", () => {

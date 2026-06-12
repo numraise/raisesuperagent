@@ -67,7 +67,16 @@
 
 ---
 
-## Phase 12+ — backlog (เลือกทำต่อ)
+## Phase 12 — Collision-aware grid move ✅ (เสร็จ v0.1.33)
+
+- ✅ บล็อก `move`/`dash`/`scout`/`patrol`/`zigzag`/`spiral` เดินทีละบล็อกผ่าน BP (`superagent:step`) เช็ค collision ด้วย `getBlock` → **ชนกำแพงแล้วหยุด ไม่ทะลุ**
+- ✅ `ensureCharacter` เลิก force-teleport (ไม่ override การเดินที่มี collision แล้ว)
+
+> หมายเหตุ in-game (v0.1.27–0.1.33): แก้ปัญหาใหญ่ที่เจอตอนเทสต์จริง — `@minecraft/server` 2.4.0 → 1.17.0, รวมเป็นไฟล์เดียว, ลบ `beforeEvents.entityHurt` ที่ไม่มีใน API, ตัด particle ไอเดิล, dedup เหลือตัวเดียว/ผู้เล่น, combat delegate ไป BP
+
+---
+
+## Phase 13+ — backlog (เลือกทำต่อ)
 
 ### AI ฉลาดขึ้น
 - 🟡 **A\* ขยายเพิ่ม** — เป้าไกลเกิน range (chunked/partial path), เดินไต่พื้นแบบมี gravity
