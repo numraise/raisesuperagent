@@ -35,6 +35,7 @@
 
 > ถ้า 1.1 ไม่เห็นตัวละคร: เช็คว่าเปิด Resource pack แล้ว และ texture โหลด — ถ้าเห็นแต่กล่องไม่มี texture = ปัญหา RP/geometry
 > รอบ smoke test 2026-06-12 โลกเดิมมีข้อความ "At least one of your resource or behavior packs failed to load" แต่ยังเห็น `superagent 0.1.34 script active`, label handler และ burst handler ทำงาน จึงควรแยกตรวจ pack อื่นในโลกนั้นถ้าข้อความนี้ยังขึ้น.
+> รอบเดียวกัน `/summon zombie ~ ~ ~` ถูกโลกนี้ปฏิเสธด้วย "The summon command is not available in this world." จึงยังไม่ได้ยืนยัน `burst` แบบ hit > 0 ในโลกนี้ ต้องใช้โลกทดสอบที่เปิดคำสั่ง summon ได้ หรือใช้ spawn egg/ม็อบที่มีอยู่ใกล้ character.
 
 ---
 
