@@ -135,7 +135,7 @@ const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const READY_TAG = "superagent.ready.0_1_33";
+const READY_TAG = "superagent.ready.0_1_34";
 const LABEL_PROPERTY = "superagent:label";
 const COMBAT_FLAG = "superagent:combat_enabled";
 const FREEZE_FLAG = "superagent:frozen";
@@ -601,7 +601,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.33 script active");
+      player.sendMessage("superagent 0.1.34 script active");
     }
   } catch (error) {
   }
@@ -1032,6 +1032,30 @@ function handleStep(player, message) {
   }
 }
 
+// Turn the character to face a cardinal direction.
+function handleFace(player, message) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    return;
+  }
+  const dir = (message || "").trim();
+  const rot = { x: 0, y: 0 };
+  if (dir === "north") rot.y = 180;
+  else if (dir === "south") rot.y = 0;
+  else if (dir === "east") rot.y = -90;
+  else if (dir === "west") rot.y = 90;
+  else if (dir === "up") rot.x = -90;
+  else if (dir === "down") rot.x = 90;
+  try {
+    owned.setRotation(rot);
+  } catch (error) {
+    try {
+      owned.teleport(owned.location, { rotation: rot });
+    } catch (error2) {
+    }
+  }
+}
+
 // ---- Phase 13 special powers ----------------------------------------------
 
 function parseNumberArg(message, def, min, max) {
@@ -1398,6 +1422,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id === "superagent:step") {
     if (isPlayerSource(event.sourceEntity)) {
       handleStep(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:face") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleFace(event.sourceEntity, event.message);
     }
     return;
   }

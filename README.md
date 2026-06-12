@@ -201,6 +201,29 @@ Quick classroom commands that affect every character (operator/cheat permission)
 - `superagent gather all` — bring every nearby character to you
 - `superagent reset squad` — dismiss your guards and clear your character's targets, label and home
 
+### Special powers
+
+Hero-style abilities, each handled by the behavior pack's script API.
+
+- `superagent lightning strike` — strike the nearest hostile with lightning
+- `superagent force blast radius %r` — knock nearby hostiles away
+- `superagent shield player for %s` — give the player resistance + absorption
+- `superagent heal player` — heal to full and grant regeneration
+- `superagent magnet items radius %r` — pull dropped items to the player
+- `superagent blink player to character` — teleport the player to the character
+- `superagent summon ally for %s` — summon a temporary iron golem helper
+
+### Basic command set (compose your own behaviour)
+
+Primitive blocks grouped so students can build their own logic, organised as
+**Control · Sensing · Thinking · Judging · Communicate**.
+
+- Control: `superagent stop`, `superagent face %direction`
+- Sensing: `superagent distance to agent up to %max` → number, `superagent ground below agent` → boolean
+- Thinking: `superagent random 1 to %max` → number, `superagent count up %key`, `superagent set flag %key %on`, `superagent flag %key is on` → boolean
+- Judging: `superagent should attack within %radius` → boolean, `superagent is safe within %radius` → boolean, `superagent danger close within %radius` → boolean
+- Communicate: `superagent report %text` (on-screen message), `superagent meet agent` (pathfind to the Agent)
+
 ## Install
 
 Import the add-on bundle:
@@ -209,7 +232,7 @@ Import the add-on bundle:
 node tools/package-superagent-addon.js
 ```
 
-Then open `dist/superagent-0.1.33.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. After that, Member + Survival players can use the MakeCode extension blocks.
+Then open `dist/superagent-0.1.34.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. For the full block set, the world must have Cheats enabled and students should run as Operator in Survival.
 
 Auto-guard combat starts **off**. Turn it on from code with the `superagent auto guard on` block (or `/scriptevent superagent:combat on`) when you want the character to fight nearby hostiles automatically. Explicit attack blocks work at any time.
 
@@ -222,7 +245,7 @@ https://github.com/numraise/raisesuperagent
 For a pinned classroom build, use:
 
 ```text
-https://github.com/numraise/raisesuperagent#superagent-0.1.33
+https://github.com/numraise/raisesuperagent#superagent-0.1.34
 ```
 
 ## Test

@@ -227,6 +227,11 @@ function loadSuperagent(agent) {
     LOCAL_PLAYER: "local_player",
     ALL_ENTITIES: "all_entities",
     AgentDetection: { Block: 0, Redstone: 1 },
+    Math: (() => {
+      const m = Object.create(Math);
+      m.randomRange = (min, max) => min;
+      return m;
+    })(),
     TurnDirection: { Left: 0, Right: 1 },
     FORWARD: Direction.FORWARD,
     BACK: Direction.BACK,
@@ -755,6 +760,46 @@ test("superagent script recomputes its A* path when terrain changes", () => {
   // stepAlongPath rechecks the next waypoint and recomputes when blocked
   assert(script.includes("if (blockIsObstacle(superagent.dimension, Math.round(waypoint.x)"));
   assert(script.includes("computeAndStorePath(superagent, goal)"));
+});
+
+test("superagent basic command set covers control, sensing, thinking, judging, communicate", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtAgent();
+  // Control
+  toolkit.stop();
+  toolkit.face(0); // north
+  // Sensing
+  assert.strictEqual(toolkit.distanceToAgent(10), 1); // mock testfor true at r=1
+  assert.strictEqual(toolkit.groundBelow(), true);
+  // Thinking
+  assert.strictEqual(toolkit.randomUpTo(6), 1); // shimmed randomRange returns min
+  toolkit.countUp("kills");
+  toolkit.setFlag("armed", true);
+  assert.strictEqual(toolkit.flagIsOn("armed"), true);
+  // Judging
+  assert.strictEqual(toolkit.shouldAttack(8), true);
+  assert.strictEqual(toolkit.isSafe(8), false);
+  assert.strictEqual(toolkit.dangerClose(8), true); // nearest hostile distance 1 <= 3
+  // Communicate
+  toolkit.report("hello");
+  toolkit.meetAgent();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:stop")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:face north")));
+  assert(commands.some((command) => command.includes("testfor @e[type=minecraft:agent,r=1]")));
+  assert(commands.some((command) => command.includes("scoreboard players set @s sa_kills 1")));
+  assert(commands.some((command) => command.includes("scoreboard players set @s sa_armed 1")));
+  assert(commands.some((command) => command.includes("title @s actionbar hello")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:pathtoagent")));
+  assert(agent.calls.some((call) => call[0] === "detect"));
+});
+
+test("superagent script faces a direction on command", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handleFace"));
+  assert(script.includes('event.id === "superagent:face"'));
+  assert(script.includes("setRotation(rot)"));
 });
 
 test("superagent special powers send the right scriptevents", () => {

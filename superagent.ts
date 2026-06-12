@@ -1878,4 +1878,144 @@ namespace superagent {
     export function summonAlly(seconds: number) {
         runAtAgent("scriptevent superagent:ally " + clamp(seconds, 5, 120))
     }
+
+    // ===== Basic command set: Control / Sensing / Thinking / Judging / Communicate =====
+
+    /**
+     * Control: stop all movement (clears walk target, path and follow).
+     */
+    //% blockId=superagent_stop block="superagent stop"
+    //% group="Control"
+    export function stop() {
+        followingAgent = false
+        runAtAgent("scriptevent superagent:stop")
+    }
+
+    /**
+     * Control: turn the character to face a direction.
+     */
+    //% blockId=superagent_face block="superagent face %direction"
+    //% group="Control"
+    export function face(direction: SuperagentMoveDirection) {
+        runAtAgent("scriptevent superagent:face " + directionName(direction))
+    }
+
+    /**
+     * Sensing: distance in blocks to the Agent, or -1 if not within range.
+     */
+    //% blockId=superagent_distance_to_agent block="superagent distance to agent up to %max"
+    //% max.min=1 max.max=64
+    //% group="Sensing"
+    export function distanceToAgent(max: number): number {
+        max = clamp(max, 1, 64)
+        ensureCharacter()
+        for (let r = 1; r <= max; r++) {
+            if (runAtSuperagent("testfor @e[type=minecraft:agent,r=" + r + "]")) {
+                return r
+            }
+        }
+        return -1
+    }
+
+    /**
+     * Sensing: true when the Agent has solid ground directly below it.
+     */
+    //% blockId=superagent_ground_below block="superagent ground below agent"
+    //% group="Sensing"
+    export function groundBelow(): boolean {
+        return agent.detect(AgentDetection.Block, DOWN)
+    }
+
+    /**
+     * Thinking: a random whole number from 1 to max.
+     */
+    //% blockId=superagent_random block="superagent random 1 to %max"
+    //% max.min=1 max.max=1000
+    //% group="Thinking"
+    export function randomUpTo(max: number): number {
+        max = clamp(max, 1, 1000)
+        return Math.randomRange(1, max)
+    }
+
+    /**
+     * Thinking: add one to a saved counter (survives reloads).
+     */
+    //% blockId=superagent_count_up block="superagent count up %key"
+    //% group="Thinking"
+    export function countUp(key: string) {
+        let value = memoryValue(key, 1024)
+        if (value < 0) {
+            value = 0
+        }
+        remember(key, value + 1)
+    }
+
+    /**
+     * Thinking: set a saved on/off flag.
+     */
+    //% blockId=superagent_set_flag block="superagent set flag %key %on"
+    //% group="Thinking"
+    export function setFlag(key: string, on: boolean) {
+        remember(key, on ? 1 : 0)
+    }
+
+    /**
+     * Thinking: true when a saved flag is on.
+     */
+    //% blockId=superagent_flag_is_on block="superagent flag %key is on"
+    //% group="Thinking"
+    export function flagIsOn(key: string): boolean {
+        return memoryEquals(key, 1)
+    }
+
+    /**
+     * Judging: should the character attack? (a hostile is within range)
+     */
+    //% blockId=superagent_should_attack block="superagent should attack within %radius"
+    //% radius.min=1 radius.max=32
+    //% group="Judging"
+    export function shouldAttack(radius: number): boolean {
+        return senseHostiles(radius)
+    }
+
+    /**
+     * Judging: is it safe? (no hostile within range)
+     */
+    //% blockId=superagent_is_safe block="superagent is safe within %radius"
+    //% radius.min=1 radius.max=32
+    //% group="Judging"
+    export function isSafe(radius: number): boolean {
+        return !senseHostiles(radius)
+    }
+
+    /**
+     * Judging: is danger very close? (a hostile within 3 blocks)
+     */
+    //% blockId=superagent_danger_close block="superagent danger close within %radius"
+    //% radius.min=1 radius.max=32
+    //% group="Judging"
+    export function dangerClose(radius: number): boolean {
+        let distance = nearestHostileDistance(radius)
+        return distance != -1 && distance <= 3
+    }
+
+    /**
+     * Communicate: show a message from the character to the player.
+     */
+    //% blockId=superagent_report block="superagent report %text"
+    //% group="Communicate"
+    export function report(text: string) {
+        runAtAgent("title @s actionbar " + text)
+    }
+
+    /**
+     * Communicate: walk the character to the Agent (pathfinding around walls).
+     */
+    //% blockId=superagent_meet_agent block="superagent meet agent"
+    //% group="Communicate"
+    export function meetAgent() {
+        followingAgent = false
+        ensureCharacter()
+        runAtAgent("scriptevent superagent:pathtoagent")
+    }
 }
