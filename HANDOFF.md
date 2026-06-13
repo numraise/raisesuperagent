@@ -246,6 +246,11 @@ changes). Importing a same-version pack often won't update — bump the version 
 7. Idle particles were intentionally removed per user request; `emitPresenceParticles` is now a
    single subtle sparkle and is no longer called per tick. Don't reintroduce per-tick particle
    spam.
+8. **MakeCode E2E smoke, 2026-06-13:** imported v0.1.35 in Minecraft Education 1.21.133,
+   added chat commands for `run`/`nav`/`path`/`stop`/`face`/`sense`, and Start compiled back
+   into the world. `path` visibly moved the superagent cube to a new position; `nav`, `stop`,
+   `face`, and `sense` were accepted from chat without errors. `sense` still needs a dedicated
+   value-readout test because the report text was not clearly visible during this smoke pass.
 
 ---
 

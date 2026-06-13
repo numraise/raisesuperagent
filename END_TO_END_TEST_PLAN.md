@@ -64,8 +64,11 @@
 | 2A.1 | เปิด Code Builder / MakeCode ในโลกที่ติดตั้ง v0.1.35 | เห็นหมวด `SUPERAGENT` ใน toolbox | ☑ 2026-06-13 |
 | 2A.2 | กด Start ในโปรเจกต์ที่มี `on chat command "run" -> superagent spawn at player` | MakeCode compile/start ผ่านและกลับเข้าเกม | ☑ 2026-06-13 |
 | 2A.3 | พิมพ์ chat command `run` | คำสั่ง MakeCode รับ event และเรียก block `spawn at player` โดยไม่ error | ☑ 2026-06-13 |
+| 2A.4 | เพิ่ม MakeCode chat commands `nav`/`path`/`stop`/`face`/`sense` แล้วกด Start | MakeCode compile/start ผ่านหลังเพิ่ม Navigation + Sensing blocks | ☑ 2026-06-13 |
+| 2A.5 | พิมพ์ `path` จาก chat command ที่เรียก `superagent.pathTo(...)` | superagent เคลื่อนไปตำแหน่งใหม่ในเกมโดยไม่ error | ☑ 2026-06-13 |
+| 2A.6 | พิมพ์ `nav`/`stop`/`face`/`sense` | MakeCode รับ event และส่งคำสั่งถึง BP โดยไม่ error; `sense` ยังต้องแยกเคสยืนยันค่าที่แสดงจริง | ◐ 2026-06-13 |
 
-> Smoke นี้ยืนยันว่า extension import/compile/run path ทำงาน แต่ยังไม่แทนการทดสอบ block กลุ่ม Navigation/Sensing/Build แบบละเอียดด้านล่าง.
+> Smoke นี้ยืนยันว่า extension import/compile/run path ทำงาน และ `pathTo` มีผลเห็นตัว superagent เคลื่อนที่จริง แต่ยังไม่แทนการทดสอบ block กลุ่ม Navigation/Sensing/Build แบบละเอียดด้านล่าง. รอบนี้ `sense` ถูกเรียกจาก MakeCode ได้โดยไม่ error แต่ยังไม่เห็นข้อความ report ชัดเจนบนหน้าจอ จึงต้องทดสอบซ้ำในฉากที่มี mob อยู่ในระยะและจดค่าที่แสดง.
 
 ---
 
