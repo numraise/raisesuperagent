@@ -1,6 +1,6 @@
 # superagent — แผนทดสอบ End-to-End ในเกมจริง
 
-เวอร์ชัน v0.1.34 | Minecraft Education 1.21.133 | ใช้กับเครื่องที่ติดตั้ง MC Education
+เวอร์ชัน v0.1.35 | Minecraft Education 1.21.133 | ใช้กับเครื่องที่ติดตั้ง MC Education
 
 > unit tests 54 เคสครอบคลุม "ตรรกะ + command string" แล้ว เอกสารนี้คือสิ่งที่ test มองไม่เห็น:
 > พฤติกรรม runtime จริง (block id, syntax คำสั่ง, entity API, permission)
@@ -11,8 +11,8 @@
 
 1. เปิด Minecraft Education → **Play → Create New → New** (หรือใช้ Flat world)
 2. ตั้งค่าโลก: **Cheats = ON**, **Default Game Mode = Survival**, **Player Permissions = Operator** (สำคัญ! บล็อกหลายตัวต้องใช้สิทธิ์ operator)
-3. **Behavior/Resource Packs**: ดับเบิลคลิก `dist/superagent-0.1.34.mcaddon` เพื่อ import → ในหน้าตั้งค่าโลก เปิดใช้ทั้ง **superagent Behavior** และ **superagent Resources**
-4. เข้าโลก แล้วยืนยันใน chat ว่าขึ้นข้อความ `superagent 0.1.34 script active` (= BP script ทำงาน)
+3. **Behavior/Resource Packs**: ดับเบิลคลิก `dist/superagent-0.1.35.mcaddon` เพื่อ import → ในหน้าตั้งค่าโลก เปิดใช้ทั้ง **superagent Behavior** และ **superagent Resources**
+4. เข้าโลก แล้วยืนยันใน chat ว่าขึ้นข้อความ `superagent 0.1.35 script active` (= BP script ทำงาน)
 
 ### โหลด MakeCode extension (เลือกวิธีใดวิธีหนึ่ง)
 
@@ -33,10 +33,13 @@
 | 1.6 | `/scriptevent superagent:freeze on` แล้วลองให้มันเดิน | ตัวละครหยุดนิ่ง · `freeze off` แล้วขยับได้อีก | ☐ |
 | 1.7 | `/scriptevent superagent:burst` | BP handler ตอบกลับและไม่ error | ☑ 2026-06-12 (`hit 0 mob(s)`) |
 | 1.8 | `/scriptevent superagent:burst` ใกล้ม็อบ hostile | hit count มากกว่า 0 และ combat path ทำ damage ได้จริง | ☑ 2026-06-12 (user verified hit > 0) |
+| 1.9 | v0.1.35 `/scriptevent superagent:label TEST-035` | ป้ายเหนือหัวเปลี่ยนเป็น `TEST-035` | ☑ 2026-06-13 |
+| 1.10 | v0.1.35 `/scriptevent superagent:burst` | ยังโจมตีได้ แต่ไม่พิมพ์ debug `hit N mob(s)` | ☑ 2026-06-13 |
 
 > ถ้า 1.1 ไม่เห็นตัวละคร: เช็คว่าเปิด Resource pack แล้ว และ texture โหลด — ถ้าเห็นแต่กล่องไม่มี texture = ปัญหา RP/geometry
 > รอบ smoke test 2026-06-12 โลกเดิมมีข้อความ "At least one of your resource or behavior packs failed to load" แต่ยังเห็น `superagent 0.1.34 script active`, label handler และ burst handler ทำงาน จึงควรแยกตรวจ pack อื่นในโลกนั้นถ้าข้อความนี้ยังขึ้น.
-> รอบเดียวกัน `/summon zombie ~ ~ ~` ถูกโลกนี้ปฏิเสธด้วย "The summon command is not available in this world." ภายหลังผู้ใช้ยืนยัน `burst` แบบ hit > 0 แล้ว จึงถือว่า combat path หลักผ่าน และสามารถลบ debug message ของ `burst` ได้ในรอบถัดไป.
+> รอบเดียวกัน `/summon zombie ~ ~ ~` ถูกโลกนี้ปฏิเสธด้วย "The summon command is not available in this world." ภายหลังผู้ใช้ยืนยัน `burst` แบบ hit > 0 แล้ว จึงถือว่า combat path หลักผ่าน.
+> รอบ smoke test 2026-06-13 ผู้ใช้ยืนยัน v0.1.35 แล้วว่า `/scriptevent superagent:label TEST-035` เปลี่ยนป้ายได้ และ `/scriptevent superagent:burst` ไม่พิมพ์ข้อความ `hit N mob(s)` แล้ว.
 
 ---
 

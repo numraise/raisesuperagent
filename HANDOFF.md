@@ -1,8 +1,8 @@
 # superagent — Engineering Handoff
 
 **For:** GPT Codex 5.5 (or any engineer/agent picking this up)
-**Current version:** v0.1.35 · 54 unit tests passing · v0.1.34 **verified running in-game** (Minecraft Education 1.21.133)
-**Last updated:** 2026-06-12
+**Current version:** v0.1.35 · 54 unit tests passing · **verified running in-game** (Minecraft Education 1.21.133)
+**Last updated:** 2026-06-13
 
 This document is the single source of truth for continuing work. Read it fully before
 changing anything — several non-obvious decisions were hard-won during real in-game testing.
@@ -19,8 +19,8 @@ The GitHub release exists at
 `https://github.com/numraise/raisesuperagent/releases/tag/superagent-0.1.34` and includes the
 `superagent-0.1.34.mcaddon` asset.
 After the user confirmed `burst` reached `hit > 0`, v0.1.35 removes the temporary burst hit-count
-chat diagnostic. Re-test the v0.1.35 add-on once installed; the expected script-active message is
-`superagent 0.1.35 script active`.
+chat diagnostic. The user verified v0.1.35 in-game on 2026-06-13: `/scriptevent
+superagent:label TEST-035` changed the name tag, and `burst` no longer printed `hit N mob(s)`.
 
 ---
 
