@@ -57,6 +57,18 @@
 
 ---
 
+## 2A. MakeCode extension smoke
+
+| # | ทำ | คาดหวัง | ผ่าน? |
+|---|-----|---------|------|
+| 2A.1 | เปิด Code Builder / MakeCode ในโลกที่ติดตั้ง v0.1.35 | เห็นหมวด `SUPERAGENT` ใน toolbox | ☑ 2026-06-13 |
+| 2A.2 | กด Start ในโปรเจกต์ที่มี `on chat command "run" -> superagent spawn at player` | MakeCode compile/start ผ่านและกลับเข้าเกม | ☑ 2026-06-13 |
+| 2A.3 | พิมพ์ chat command `run` | คำสั่ง MakeCode รับ event และเรียก block `spawn at player` โดยไม่ error | ☑ 2026-06-13 |
+
+> Smoke นี้ยืนยันว่า extension import/compile/run path ทำงาน แต่ยังไม่แทนการทดสอบ block กลุ่ม Navigation/Sensing/Build แบบละเอียดด้านล่าง.
+
+---
+
 ## 3. Sensing + Events (Phase 2 + 3)
 
 | # | ทำ | คาดหวัง | ผ่าน? |

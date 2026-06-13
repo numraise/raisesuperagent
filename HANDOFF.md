@@ -21,6 +21,9 @@ The GitHub release exists at
 After the user confirmed `burst` reached `hit > 0`, v0.1.35 removes the temporary burst hit-count
 chat diagnostic. The user verified v0.1.35 in-game on 2026-06-13: `/scriptevent
 superagent:label TEST-035` changed the name tag, and `burst` no longer printed `hit N mob(s)`.
+Later on 2026-06-13, Code Builder / MakeCode also showed the `SUPERAGENT` category, compiled a
+project containing `on chat command "run" -> superagent spawn at player`, returned to game, and
+accepted the chat command `run` without error.
 
 ---
 
