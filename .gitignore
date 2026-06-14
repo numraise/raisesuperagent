@@ -8,3 +8,7 @@ node_modules/
 
 # macOS
 .DS_Store
+
+# Build artifacts
+dist/*.mcaddon
+dist/*.mcpack
