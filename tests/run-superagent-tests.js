@@ -986,3 +986,45 @@ test("superagent script does not depend on command selectors finding Education A
   assert(!script.includes("commandFollowSuperagent"));
   assert(!script.includes("commandAttackAroundAgent"));
 });
+
+test("superagent toolbox hides duplicate or weakly verified legacy blocks", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  [
+    "superagent_show_status",
+    "superagent_last_burst_count",
+    "superagent_keep_aura_on",
+    "superagent_follow_agent_on",
+    "superagent_follow_agent_off",
+    "superagent_attack_aura",
+    "superagent_guard_agent",
+    "superagent_power_burst",
+    "superagent_smart_sweep",
+    "superagent_overdrive",
+    "superagent_dash",
+    "superagent_scout_line",
+    "superagent_patrol_square",
+    "superagent_orbit_agent",
+    "superagent_evade_to_agent_side",
+    "superagent_high_ground",
+    "superagent_zigzag",
+    "superagent_spiral_search",
+    "superagent_smart_move",
+    "superagent_detect_block",
+    "superagent_walk_stop",
+    "superagent_summon_guard",
+    "superagent_dismiss_guards",
+    "superagent_mission_start",
+    "superagent_mission_award",
+    "superagent_mission_score",
+    "superagent_mission_complete",
+    "superagent_show_scoreboard",
+    "superagent_freeze_all",
+    "superagent_unfreeze_all",
+    "superagent_gather_all",
+    "superagent_reset_squad",
+    "superagent_ground_below",
+    "superagent_meet_agent",
+  ].forEach((blockId) => {
+    assert(!source.includes(`blockId=${blockId} `), blockId);
+  });
+});

@@ -19,29 +19,10 @@ Minecraft Education 1.21.133 add-on and MakeCode extension for a visible one-blo
 
 ## MakeCode Blocks
 
-- `superagent show ready/attack/shield`
 - `superagent spawn at agent`
 - `superagent recall to agent`
 - `superagent move north/east/south/west/up/down blocks`
-- `superagent follow agent on`
-- `superagent follow agent off`
-- `superagent dash direction blocks`
-- `superagent scout direction steps`
-- `superagent patrol square side rounds`
-- `superagent orbit agent radius steps`
-- `superagent evade to agent side distance`
-- `superagent high ground blocks`
-- `superagent zigzag direction steps`
-- `superagent spiral search radius rounds`
-- `superagent smart move guard/scout/patrol/orbit/evade/high ground/zigzag/spiral steps strength`
 - `superagent attack from character radius strength`
-- `superagent attack aura`
-- `superagent guard agent`
-- `superagent power burst`
-- `superagent smart sweep`
-- `superagent overdrive`
-- `superagent keep aura on`
-- `superagent last burst count`
 - `superagent label %text`
 - `superagent auto guard on/off`
 
@@ -54,7 +35,6 @@ Agent's native `detect`, so the world must allow students operator/cheat permiss
 - `superagent sense %mob within %radius blocks` → boolean
 - `superagent hostiles within %radius blocks` → boolean
 - `superagent nearest hostile distance up to %maxRadius` → number (`-1` when none)
-- `superagent block %direction of agent` → boolean (Agent-relative)
 - `superagent path clear %direction of character` → boolean
 - `superagent nearest %block distance up to %maxRadius` → number (scans the 6 axes, `-1` if none)
 - `superagent nearest %block direction up to %maxRadius` → number (0=ahead..5=down, `-1` if none)
@@ -86,8 +66,8 @@ travel direction, so movement looks continuous.
 - `superagent walk to x %x y %y z %z` — glide to a world position
 - `superagent walk to agent` — glide to the Agent's current spot once
 - `superagent follow walk %on` — keep gliding after the Agent
-- `superagent walk stop` — stop and clear the current target
 - `superagent reached x %x y %y z %z` → boolean (within 2 blocks of that spot)
+- `superagent stop` — stop and clear the current target
 
 Use the walk blocks **or** the instant grid-move blocks for a given character, not both at the
 same time — they are two different movement modes.
@@ -155,26 +135,12 @@ a small scan. Home is stored on the player and reuses the glide navigation to re
 - `superagent memory %key value up to %max` → number (scans 0..max, `-1` if not found)
 - `superagent set home` / `superagent go home` / `superagent clear home`
 
-### Squad (autonomous guards)
+### Hidden legacy helpers
 
-- `superagent summon guard` — add an autonomous guard (up to 4) that follows the player in a
-  ring and fights nearby hostiles when auto-guard is on
-- `superagent dismiss guards` — remove all guards
-
-Guards are managed entirely by the behavior pack: they keep themselves alive, circle the
-player, and defend. They are separate from your single programmable character, so commanding
-the main character never disturbs the squad.
-
-### Mission / leaderboard (goal-driven coding)
-
-Build classroom challenges with on-screen titles and a persistent score sidebar. Score is a
-scoreboard value, so it survives world reloads and can rank a whole class.
-
-- `superagent mission start %title` — announce a title and label the character
-- `superagent award %points points` — add to the player's score
-- `superagent score up to %max` → number (reads the saved score)
-- `superagent mission complete` — celebratory finish
-- `superagent show scoreboard` — display the score leaderboard on the sidebar
+Older experimental blocks for smart move patterns, mission scoreboards, teacher controls,
+extra guards, and combat aliases are still kept as functions for old projects, but they are no
+longer shown in the toolbox. They either duplicated clearer blocks or depended on runtime
+behavior that was harder to verify in Minecraft Education.
 
 ### Auto status
 
@@ -219,10 +185,10 @@ Primitive blocks grouped so students can build their own logic, organised as
 **Control · Sensing · Thinking · Judging · Communicate**.
 
 - Control: `superagent stop`, `superagent face %direction`
-- Sensing: `superagent distance to agent up to %max` → number, `superagent ground below agent` → boolean
+- Sensing: `superagent distance to agent up to %max` → number
 - Thinking: `superagent random 1 to %max` → number, `superagent count up %key`, `superagent set flag %key %on`, `superagent flag %key is on` → boolean
 - Judging: `superagent should attack within %radius` → boolean, `superagent is safe within %radius` → boolean, `superagent danger close within %radius` → boolean
-- Communicate: `superagent report %text` (on-screen message), `superagent meet agent` (pathfind to the Agent)
+- Communicate: `superagent report %text` (on-screen message)
 
 ## Install
 
@@ -232,10 +198,10 @@ Import the add-on bundle:
 node tools/package-superagent-addon.js
 ```
 
-Then open `dist/superagent-0.1.36.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. For the full block set, the world must have Cheats enabled and students should run as Operator in Survival.
+Then open `dist/superagent-0.1.37.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. For the full block set, the world must have Cheats enabled and students should run as Operator in Survival.
 
 Release download:
-`https://github.com/numraise/raisesuperagent/releases/download/superagent-0.1.36/superagent-0.1.36.mcaddon`
+`https://github.com/numraise/raisesuperagent/releases/download/superagent-0.1.37/superagent-0.1.37.mcaddon`
 
 Auto-guard combat starts **off**. Turn it on from code with the `superagent auto guard on` block (or `/scriptevent superagent:combat on`) when you want the character to fight nearby hostiles automatically. Explicit attack blocks work at any time.
 
@@ -248,7 +214,7 @@ https://github.com/numraise/raisesuperagent
 For a pinned classroom build, use:
 
 ```text
-https://github.com/numraise/raisesuperagent#superagent-0.1.36
+https://github.com/numraise/raisesuperagent#superagent-0.1.37
 ```
 
 ## Test

@@ -1,6 +1,6 @@
 # superagent — แผนทดสอบ End-to-End ในเกมจริง
 
-เวอร์ชัน v0.1.36 | Minecraft Education 1.21.133 | ใช้กับเครื่องที่ติดตั้ง MC Education
+เวอร์ชัน v0.1.37 | Minecraft Education 1.21.133 | ใช้กับเครื่องที่ติดตั้ง MC Education
 
 > unit tests 54 เคสครอบคลุม "ตรรกะ + command string" แล้ว เอกสารนี้คือสิ่งที่ test มองไม่เห็น:
 > พฤติกรรม runtime จริง (block id, syntax คำสั่ง, entity API, permission)
@@ -11,8 +11,8 @@
 
 1. เปิด Minecraft Education → **Play → Create New → New** (หรือใช้ Flat world)
 2. ตั้งค่าโลก: **Cheats = ON**, **Default Game Mode = Survival**, **Player Permissions = Operator** (สำคัญ! บล็อกหลายตัวต้องใช้สิทธิ์ operator)
-3. **Behavior/Resource Packs**: ดับเบิลคลิก `dist/superagent-0.1.36.mcaddon` เพื่อ import → ในหน้าตั้งค่าโลก เปิดใช้ทั้ง **superagent Behavior** และ **superagent Resources**
-4. เข้าโลก แล้วยืนยันใน chat ว่าขึ้นข้อความ `superagent 0.1.36 script active` (= BP script ทำงาน)
+3. **Behavior/Resource Packs**: ดับเบิลคลิก `dist/superagent-0.1.37.mcaddon` เพื่อ import → ในหน้าตั้งค่าโลก เปิดใช้ทั้ง **superagent Behavior** และ **superagent Resources**
+4. เข้าโลก แล้วยืนยันใน chat ว่าขึ้นข้อความ `superagent 0.1.37 script active` (= BP script ทำงาน)
 
 ### โหลด MakeCode extension (เลือกวิธีใดวิธีหนึ่ง)
 

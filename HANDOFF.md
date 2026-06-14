@@ -1,7 +1,7 @@
 # superagent — Engineering Handoff
 
 **For:** GPT Codex 5.5 (or any engineer/agent picking this up)
-**Current version:** v0.1.36 · 54 unit tests passing · v0.1.35 **verified running in-game** (Minecraft Education 1.21.133)
+**Current version:** v0.1.37 · 54 unit tests passing · v0.1.35 **verified running in-game** (Minecraft Education 1.21.133)
 **Last updated:** 2026-06-13
 
 This document is the single source of truth for continuing work. Read it fully before
@@ -141,7 +141,7 @@ the pack works at all. **Re-introducing any of these will silently break the who
    loop (character spawn + name tag still work).
 
 **How to confirm the script is alive in-game:** on world join you should see chat
-`superagent 0.1.36 script active`, the cube should carry the name tag `superagent [idle]`, and
+`superagent 0.1.37 script active`, the cube should carry the name tag `superagent [idle]`, and
 `/scriptevent superagent:burst` near a hostile should damage the mob without printing the old
 temporary hit-count diagnostic.
 

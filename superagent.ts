@@ -401,8 +401,6 @@ namespace superagent {
     /**
      * Get the number of Agent attacks performed by the last superagent burst.
      */
-    //% blockId=superagent_last_burst_count block="superagent last burst count"
-    //% group="Status"
     export function reportLastBurstCount(): number {
         return lastBurstCount
     }
@@ -429,8 +427,6 @@ namespace superagent {
     /**
      * Show a small Agent status gesture that does not require commands.
      */
-    //% blockId=superagent_show_status block="superagent show %status"
-    //% group="Status"
     export function showStatus(status: SuperagentStatus) {
         lastBurstCount = 0
         ensureAuraLoop()
@@ -451,9 +447,6 @@ namespace superagent {
     /**
      * Make the Agent perform a superagent-style area attack around itself.
      */
-    //% blockId=superagent_attack_aura block="superagent attack aura rounds %rounds hits %hits style %style"
-    //% rounds.min=1 rounds.max=32 hits.min=1 hits.max=8
-    //% group="Combat"
     export function attackAura(rounds: number, hits: number, style: SuperagentBurstStyle) {
         lastBurstCount = 0
         ensureAuraLoop()
@@ -469,9 +462,6 @@ namespace superagent {
     /**
      * Keep guarding the Agent's space with repeated horizontal bursts.
      */
-    //% blockId=superagent_guard_agent block="superagent guard agent rounds %rounds hits %hits"
-    //% rounds.min=1 rounds.max=64 hits.min=1 hits.max=8
-    //% group="Combat"
     export function guardAgent(rounds: number, hits: number) {
         attackAura(rounds, hits, SuperagentBurstStyle.Ring)
     }
@@ -479,9 +469,6 @@ namespace superagent {
     /**
      * Perform a full six-direction burst and collect any nearby drops.
      */
-    //% blockId=superagent_power_burst block="superagent power burst rounds %rounds hits %hits"
-    //% rounds.min=1 rounds.max=32 hits.min=1 hits.max=8
-    //% group="Combat"
     export function powerBurst(rounds: number, hits: number) {
         attackAura(rounds, hits, SuperagentBurstStyle.Sphere)
         agent.collectAll()
@@ -490,9 +477,6 @@ namespace superagent {
     /**
      * Sweep threats with a smarter pattern that prioritizes the front, sides, then vertical danger when needed.
      */
-    //% blockId=superagent_smart_sweep block="superagent smart sweep rounds %rounds strength %strength mode %mode"
-    //% rounds.min=1 rounds.max=16 strength.min=1 strength.max=5
-    //% group="Combat"
     export function smartSweep(rounds: number, strength: number, mode: SuperagentSmartMode) {
         lastBurstCount = 0
         ensureAuraLoop()
@@ -509,9 +493,6 @@ namespace superagent {
     /**
      * Use the strongest member-safe superagent attack pattern and collect nearby drops.
      */
-    //% blockId=superagent_overdrive block="superagent overdrive rounds %rounds strength %strength"
-    //% rounds.min=1 rounds.max=16 strength.min=1 strength.max=5
-    //% group="Combat"
     export function overdrive(rounds: number, strength: number) {
         smartSweep(rounds, strength, SuperagentSmartMode.Emergency)
         agent.collectAll()
@@ -520,8 +501,6 @@ namespace superagent {
     /**
      * Start and refresh the visible superagent aura at the Agent's current position.
      */
-    //% blockId=superagent_keep_aura_on block="superagent keep aura on"
-    //% group="Status"
     export function keepAuraOn() {
         ensureAuraLoop()
         syncAddonMob()
@@ -575,8 +554,6 @@ namespace superagent {
     /**
      * Keep the visible superagent character following the Agent.
      */
-    //% blockId=superagent_follow_agent_on block="superagent follow agent on"
-    //% group="Control"
     export function followAgentOn() {
         followingAgent = true
         ensureFollowLoop()
@@ -586,8 +563,6 @@ namespace superagent {
     /**
      * Stop automatic follow mode for the visible superagent character.
      */
-    //% blockId=superagent_follow_agent_off block="superagent follow agent off"
-    //% group="Control"
     export function followAgentOff() {
         followingAgent = false
         showCharacterPulse()
@@ -613,9 +588,6 @@ namespace superagent {
     /**
      * Dash the visible superagent character quickly in one direction.
      */
-    //% blockId=superagent_dash block="superagent dash %direction blocks %blocks"
-    //% blocks.min=1 blocks.max=32
-    //% group="Smart Move"
     export function dash(direction: SuperagentMoveDirection, blocks: number) {
         followingAgent = false
         blocks = clamp(blocks, 1, 32)
@@ -628,9 +600,6 @@ namespace superagent {
     /**
      * Scout in a straight line while pulsing and attacking nearby threats.
      */
-    //% blockId=superagent_scout_line block="superagent scout %direction steps %steps"
-    //% steps.min=1 steps.max=32
-    //% group="Smart Move"
     export function scoutLine(direction: SuperagentMoveDirection, steps: number) {
         followingAgent = false
         steps = clamp(steps, 1, 32)
@@ -643,9 +612,6 @@ namespace superagent {
     /**
      * Patrol a square path around the current superagent position.
      */
-    //% blockId=superagent_patrol_square block="superagent patrol square side %side rounds %rounds"
-    //% side.min=1 side.max=16 rounds.min=1 rounds.max=8
-    //% group="Smart Move"
     export function patrolSquare(side: number, rounds: number) {
         followingAgent = false
         side = clamp(side, 1, 16)
@@ -661,9 +627,6 @@ namespace superagent {
     /**
      * Orbit around the Agent while attacking from the superagent position.
      */
-    //% blockId=superagent_orbit_agent block="superagent orbit agent radius %radius steps %steps"
-    //% radius.min=1 radius.max=16 steps.min=1 steps.max=32
-    //% group="Smart Move"
     export function orbitAgent(radius: number, steps: number) {
         followingAgent = false
         radius = clamp(radius, 1, 16)
@@ -677,9 +640,6 @@ namespace superagent {
     /**
      * Evade to the Agent's side and counterattack.
      */
-    //% blockId=superagent_evade_to_agent_side block="superagent evade to agent side distance %distance"
-    //% distance.min=1 distance.max=16
-    //% group="Smart Move"
     export function evadeToAgentSide(distance: number) {
         followingAgent = false
         distance = clamp(distance, 1, 16)
@@ -690,9 +650,6 @@ namespace superagent {
     /**
      * Move the superagent upward for a high-ground guard position.
      */
-    //% blockId=superagent_high_ground block="superagent high ground blocks %blocks"
-    //% blocks.min=1 blocks.max=16
-    //% group="Smart Move"
     export function highGround(blocks: number) {
         followingAgent = false
         blocks = clamp(blocks, 1, 16)
@@ -703,9 +660,6 @@ namespace superagent {
     /**
      * Advance with alternating side steps to cover more area.
      */
-    //% blockId=superagent_zigzag block="superagent zigzag %direction steps %steps"
-    //% steps.min=1 steps.max=32
-    //% group="Smart Move"
     export function zigzag(direction: SuperagentMoveDirection, steps: number) {
         followingAgent = false
         steps = clamp(steps, 1, 32)
@@ -719,9 +673,6 @@ namespace superagent {
     /**
      * Search outward in a spiral from the current superagent position.
      */
-    //% blockId=superagent_spiral_search block="superagent spiral search radius %radius rounds %rounds"
-    //% radius.min=1 radius.max=8 rounds.min=1 rounds.max=8
-    //% group="Smart Move"
     export function spiralSearch(radius: number, rounds: number) {
         followingAgent = false
         radius = clamp(radius, 1, 8)
@@ -738,9 +689,6 @@ namespace superagent {
     /**
      * Choose a smart movement pattern and attack from the superagent character.
      */
-    //% blockId=superagent_smart_move block="superagent smart move %mode steps %steps strength %strength"
-    //% steps.min=1 steps.max=32 strength.min=1 strength.max=8
-    //% group="Smart Move"
     export function smartMove(mode: SuperagentSmartMoveMode, steps: number, strength: number) {
         followingAgent = false
         steps = clamp(steps, 1, 32)
@@ -868,8 +816,6 @@ namespace superagent {
     /**
      * True when the Agent senses a block in the chosen direction (Agent-relative).
      */
-    //% blockId=superagent_detect_block block="superagent block %direction of agent"
-    //% group="Sensing"
     export function detectBlock(direction: SuperagentSense): boolean {
         return agent.detect(AgentDetection.Block, senseDirection(direction))
     }
@@ -1120,8 +1066,6 @@ namespace superagent {
     /**
      * Stop any walking and clear the current walk target.
      */
-    //% blockId=superagent_walk_stop block="superagent walk stop"
-    //% group="Navigation"
     export function walkStop() {
         runAtAgent("scriptevent superagent:stop")
     }
@@ -1506,8 +1450,6 @@ namespace superagent {
     /**
      * Summon an extra autonomous guard character that follows and defends the player.
      */
-    //% blockId=superagent_summon_guard block="superagent summon guard"
-    //% group="Squad"
     export function summonGuard() {
         runAtAgent("scriptevent superagent:addguard")
     }
@@ -1515,8 +1457,6 @@ namespace superagent {
     /**
      * Dismiss all summoned guard characters.
      */
-    //% blockId=superagent_dismiss_guards block="superagent dismiss guards"
-    //% group="Squad"
     export function dismissGuards() {
         runAtAgent("scriptevent superagent:clearguards")
     }
@@ -1524,8 +1464,6 @@ namespace superagent {
     /**
      * Announce a mission title on screen and label the character.
      */
-    //% blockId=superagent_mission_start block="superagent mission start %title"
-    //% group="Mission"
     export function missionStart(title: string) {
         ensureCharacter()
         runAtAgent("scoreboard objectives add sa_score dummy")
@@ -1536,8 +1474,6 @@ namespace superagent {
     /**
      * Award points to the player's saved score (survives reloads).
      */
-    //% blockId=superagent_mission_award block="superagent award %points points"
-    //% group="Mission"
     export function missionAward(points: number) {
         runAtAgent("scoreboard objectives add sa_score dummy")
         runAtAgent("scoreboard players add @s sa_score " + points)
@@ -1548,9 +1484,6 @@ namespace superagent {
     /**
      * Read the player's saved score by scanning 0..max. Returns -1 if unset.
      */
-    //% blockId=superagent_mission_score block="superagent score up to %max"
-    //% max.min=1 max.max=1024
-    //% group="Mission"
     export function missionScore(max: number): number {
         return memoryValue("score", max)
     }
@@ -1558,8 +1491,6 @@ namespace superagent {
     /**
      * Show a celebratory complete message.
      */
-    //% blockId=superagent_mission_complete block="superagent mission complete"
-    //% group="Mission"
     export function missionComplete() {
         ensureCharacter()
         runAtAgent("title @s title Complete!")
@@ -1570,8 +1501,6 @@ namespace superagent {
     /**
      * Show the score leaderboard on the sidebar.
      */
-    //% blockId=superagent_show_scoreboard block="superagent show scoreboard"
-    //% group="Mission"
     export function showScoreboard() {
         runAtAgent("scoreboard objectives add sa_score dummy")
         runAtAgent("scoreboard objectives setdisplay sidebar sa_score")
@@ -1650,8 +1579,6 @@ namespace superagent {
     /**
      * Teacher control: freeze every superagent character in place.
      */
-    //% blockId=superagent_freeze_all block="superagent freeze all"
-    //% group="Teacher"
     export function freezeAll() {
         runAtAgent("scriptevent superagent:freeze on")
     }
@@ -1659,8 +1586,6 @@ namespace superagent {
     /**
      * Teacher control: let every superagent character move again.
      */
-    //% blockId=superagent_unfreeze_all block="superagent unfreeze all"
-    //% group="Teacher"
     export function unfreezeAll() {
         runAtAgent("scriptevent superagent:freeze off")
     }
@@ -1668,8 +1593,6 @@ namespace superagent {
     /**
      * Teacher control: gather all nearby characters to you.
      */
-    //% blockId=superagent_gather_all block="superagent gather all"
-    //% group="Teacher"
     export function gatherAll() {
         runAtAgent("scriptevent superagent:gather")
     }
@@ -1677,8 +1600,6 @@ namespace superagent {
     /**
      * Teacher control: dismiss guards and clear your character's targets and label.
      */
-    //% blockId=superagent_reset_squad block="superagent reset squad"
-    //% group="Teacher"
     export function resetSquad() {
         runAtAgent("scriptevent superagent:reset")
     }
@@ -1920,8 +1841,6 @@ namespace superagent {
     /**
      * Sensing: true when the Agent has solid ground directly below it.
      */
-    //% blockId=superagent_ground_below block="superagent ground below agent"
-    //% group="Sensing"
     export function groundBelow(): boolean {
         return agent.detect(AgentDetection.Block, DOWN)
     }
@@ -2011,8 +1930,6 @@ namespace superagent {
     /**
      * Communicate: walk the character to the Agent (pathfinding around walls).
      */
-    //% blockId=superagent_meet_agent block="superagent meet agent"
-    //% group="Communicate"
     export function meetAgent() {
         followingAgent = false
         ensureCharacter()
