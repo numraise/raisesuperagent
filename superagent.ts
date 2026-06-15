@@ -167,6 +167,10 @@ namespace superagent {
         return mobs.execute(mobs.target(LOCAL_PLAYER), superagentPosition, command)
     }
 
+    function memoryObjective(key: string): string {
+        return "sa_" + key
+    }
+
     function selectSuperagentNear(position: Position, radius: number) {
         // Select by type within a radius of the command source (the player).
         // We avoid atCoordinate because the stored position can be relative, and
@@ -1370,8 +1374,9 @@ namespace superagent {
     //% blockId=superagent_remember block="superagent remember %key = %value"
     //% group="Memory"
     export function remember(key: string, value: number) {
-        runAtAgent("scoreboard objectives add sa_" + key + " dummy")
-        runAtAgent("scoreboard players set @s sa_" + key + " " + value)
+        let objective = memoryObjective(key)
+        runAtAgent("scoreboard objectives add " + objective + " dummy")
+        runAtAgent("scoreboard players set @s " + objective + " " + value)
     }
 
     /**
@@ -1380,7 +1385,7 @@ namespace superagent {
     //% blockId=superagent_forget block="superagent forget %key"
     //% group="Memory"
     export function forget(key: string) {
-        runAtAgent("scoreboard players reset @s sa_" + key)
+        runAtAgent("scoreboard players reset @s " + memoryObjective(key))
     }
 
     /**
@@ -1389,7 +1394,7 @@ namespace superagent {
     //% blockId=superagent_memory_equals block="superagent memory %key = %value"
     //% group="Memory"
     export function memoryEquals(key: string, value: number): boolean {
-        return runAtAgent("execute if score @s sa_" + key + " matches " + value + " run testfor @s")
+        return runAtAgent("scoreboard players test @s " + memoryObjective(key) + " " + value + " " + value)
     }
 
     /**
@@ -1398,7 +1403,7 @@ namespace superagent {
     //% blockId=superagent_memory_at_least block="superagent memory %key >= %value"
     //% group="Memory"
     export function memoryAtLeast(key: string, value: number): boolean {
-        return runAtAgent("execute if score @s sa_" + key + " matches " + value + ".. run testfor @s")
+        return runAtAgent("scoreboard players test @s " + memoryObjective(key) + " " + value + " 2147483647")
     }
 
     /**

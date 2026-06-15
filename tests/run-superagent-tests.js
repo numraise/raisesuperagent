@@ -517,8 +517,8 @@ test("superagent memory stores and reads scoreboard-backed values", () => {
   assert(commands.some((command) => command.includes("scoreboard objectives add sa_ore dummy")));
   assert(commands.some((command) => command.includes("scoreboard players set @s sa_ore 5")));
   assert(commands.some((command) => command.includes("scoreboard players reset @s sa_old")));
-  assert(commands.some((command) => command.includes("execute if score @s sa_ore matches 5 run testfor @s")));
-  assert(commands.some((command) => command.includes("execute if score @s sa_ore matches 3.. run testfor @s")));
+  assert(commands.some((command) => command.includes("scoreboard players test @s sa_ore 5 5")));
+  assert(commands.some((command) => command.includes("scoreboard players test @s sa_ore 3 2147483647")));
 });
 
 test("superagent home and squad blocks emit the right scriptevents", () => {
