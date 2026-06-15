@@ -106,6 +106,7 @@ function transformMakeCodeTs(source) {
     "senseOffset",
     "mobSelector",
     "directionName",
+    "assistKind",
     "evaluateWatcher",
     "pollWatchers",
     "ensureWatchLoop",
@@ -153,26 +154,65 @@ function createMockAgent() {
     collectAll() {
       calls.push(["collectAll"]);
     },
+    collect(item) {
+      calls.push(["collect", item]);
+    },
     getPosition() {
       calls.push(["getPosition"]);
       return makePosition(10, 20, 30);
+    },
+    teleportToPlayer() {
+      calls.push(["teleportToPlayer"]);
     },
     detect(detection, direction) {
       calls.push(["detect", detection, direction]);
       return true;
     },
+    setAssist(assist, on) {
+      calls.push(["setAssist", assist, on]);
+    },
+    inspect(kind, direction) {
+      calls.push(["inspect", kind, direction]);
+      return kind === 0 ? 42 : 7;
+    },
+    interact(direction) {
+      calls.push(["interact", direction]);
+    },
     destroy(direction) {
       calls.push(["destroy", direction]);
+    },
+    till(direction) {
+      calls.push(["till", direction]);
     },
     place(direction) {
       calls.push(["place", direction]);
     },
+    setSlot(slot) {
+      calls.push(["setSlot", slot]);
+    },
+    drop(direction, slot, amount) {
+      calls.push(["drop", direction, slot, amount]);
+    },
     dropAll(direction) {
       calls.push(["dropAll", direction]);
+    },
+    transfer(fromSlot, amount, toSlot) {
+      calls.push(["transfer", fromSlot, amount, toSlot]);
+    },
+    setItem(item, amount, slot) {
+      calls.push(["setItem", item, amount, slot]);
     },
     getItemCount(slot) {
       calls.push(["getItemCount", slot]);
       return 5;
+    },
+    getItemSpace(slot) {
+      calls.push(["getItemSpace", slot]);
+      return 59;
+    },
+    getItemDetail(slot) {
+      calls.push(["getItemDetail", slot]);
+      return 3;
     },
   };
 }
@@ -241,6 +281,10 @@ function loadSuperagent(agent) {
     LOCAL_PLAYER: "local_player",
     ALL_ENTITIES: "all_entities",
     AgentDetection: { Block: 0, Redstone: 1 },
+    AgentInspection: { Block: 0, Data: 1 },
+    PLACE_ON_MOVE: 0,
+    PLACE_FROM_ANY_SLOT: 1,
+    DESTROY_OBSTACLES: 2,
     Math: (() => {
       const m = Object.create(Math);
       m.randomRange = (min, max) => min;
@@ -633,6 +677,52 @@ test("superagent agent-work blocks read inventory and build moves", () => {
   assert(agent.calls.some((call) => call[0] === "collectAll"));
   assert.strictEqual(agent.calls.filter((call) => call[0] === "place" && call[1] === Direction.DOWN).length, 5);
   assert(agent.calls.some((call) => call[0] === "place" && call[1] === Direction.FORWARD));
+});
+
+test("superagent mirrors core MakeCode Agent command blocks", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.agentMove(0, 2);
+  toolkit.agentTurn(1);
+  toolkit.agentSetAssist(2, true);
+  toolkit.agentTeleportToPlayer();
+  toolkit.agentPlace(0);
+  toolkit.agentDestroy(0);
+  toolkit.agentTill(0);
+  toolkit.agentAttack(0);
+  toolkit.agentInteract(0);
+  toolkit.agentSetSlot(2);
+  assert.strictEqual(toolkit.agentDetectBlock(0), true);
+  assert.strictEqual(toolkit.agentDetectRedstone(0), true);
+  assert.strictEqual(toolkit.agentInspectBlock(0), 42);
+  assert.strictEqual(toolkit.agentInspectData(0), 7);
+  toolkit.agentCollectItem(1);
+  toolkit.agentDrop(2, 3, 0);
+  toolkit.agentTransfer(2, 3, 4);
+  toolkit.agentSetItem(1, 8, 2);
+  assert.strictEqual(toolkit.agentItemSpace(2), 59);
+  assert.strictEqual(toolkit.agentItemDetail(2), 3);
+
+  assert(agent.calls.some((call) => call[0] === "move" && call[1] === Direction.FORWARD && call[2] === 2));
+  assert(agent.calls.some((call) => call[0] === "turn" && call[1] === 1));
+  assert(agent.calls.some((call) => call[0] === "setAssist" && call[1] === 2 && call[2] === true));
+  assert(agent.calls.some((call) => call[0] === "teleportToPlayer"));
+  assert(agent.calls.some((call) => call[0] === "place" && call[1] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "destroy" && call[1] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "till" && call[1] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "interact" && call[1] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "setSlot" && call[1] === 2));
+  assert(agent.calls.some((call) => call[0] === "detect" && call[1] === 0 && call[2] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "detect" && call[1] === 1 && call[2] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "inspect" && call[1] === 0 && call[2] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "inspect" && call[1] === 1 && call[2] === Direction.FORWARD));
+  assert(agent.calls.some((call) => call[0] === "collect" && call[1] === 1));
+  assert(agent.calls.some((call) => call[0] === "drop" && call[1] === Direction.FORWARD && call[2] === 2 && call[3] === 3));
+  assert(agent.calls.some((call) => call[0] === "transfer" && call[1] === 2 && call[2] === 3 && call[3] === 4));
+  assert(agent.calls.some((call) => call[0] === "setItem" && call[1] === 1 && call[2] === 8 && call[3] === 2));
+  assert(agent.calls.some((call) => call[0] === "getItemSpace" && call[1] === 2));
+  assert(agent.calls.some((call) => call[0] === "getItemDetail" && call[1] === 2));
 });
 
 test("superagent teacher controls emit freeze, gather and reset scriptevents", () => {
@@ -1124,4 +1214,30 @@ test("superagent toolbox exposes value blocks for pluggable enum sockets", () =>
   assert(source.includes('blockId=superagent_value_block block="superagent block %block"'));
   assert(source.includes('blockId=superagent_value_transform block="superagent transform %transform"'));
   assert(source.includes('group="Values"'));
+});
+
+test("superagent toolbox mirrors core Agent command blocks", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  [
+    'blockId=superagent_agent_move block="superagent agent move %direction steps %steps"',
+    'blockId=superagent_agent_turn block="superagent agent turn %turn"',
+    'blockId=superagent_agent_set_assist block="superagent agent assist %assist %on"',
+    'blockId=superagent_agent_teleport_to_player block="superagent agent teleport to player"',
+    'blockId=superagent_agent_place block="superagent agent place %direction"',
+    'blockId=superagent_agent_destroy block="superagent agent destroy %direction"',
+    'blockId=superagent_agent_till block="superagent agent till %direction"',
+    'blockId=superagent_agent_attack block="superagent agent attack %direction"',
+    'blockId=superagent_agent_interact block="superagent agent interact %direction"',
+    'blockId=superagent_agent_set_slot block="superagent agent set slot %slot"',
+    'blockId=superagent_agent_detect_block block="superagent agent detect block %direction"',
+    'blockId=superagent_agent_detect_redstone block="superagent agent detect redstone %direction"',
+    'blockId=superagent_agent_inspect_block block="superagent agent inspect block %direction"',
+    'blockId=superagent_agent_inspect_data block="superagent agent inspect data %direction"',
+    'blockId=superagent_agent_collect_item block="superagent agent collect item %item"',
+    'blockId=superagent_agent_drop block="superagent agent drop slot %slot amount %amount %direction"',
+    'blockId=superagent_agent_transfer block="superagent agent transfer from slot %fromSlot amount %amount to slot %toSlot"',
+    'blockId=superagent_agent_set_item block="superagent agent set item %item amount %amount slot %slot"',
+    'blockId=superagent_agent_item_space block="superagent agent item space in slot %slot"',
+    'blockId=superagent_agent_item_detail block="superagent agent item detail in slot %slot"',
+  ].forEach((block) => assert(source.includes(block), block));
 });

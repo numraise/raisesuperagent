@@ -74,6 +74,22 @@ enum SuperagentSense {
     Down = 5
 }
 
+enum SuperagentTurn {
+    //% block="left"
+    Left = 0,
+    //% block="right"
+    Right = 1
+}
+
+enum SuperagentAssist {
+    //% block="place on move"
+    PlaceOnMove = 0,
+    //% block="place from any slot"
+    PlaceFromAnySlot = 1,
+    //% block="destroy obstacles"
+    DestroyObstacles = 2
+}
+
 enum SuperagentMobType {
     //% block="any hostile"
     AnyHostile = 0,
@@ -274,6 +290,16 @@ namespace superagent {
             return "down"
         }
         return "north"
+    }
+
+    function assistKind(assist: SuperagentAssist): number {
+        if (assist == SuperagentAssist.PlaceFromAnySlot) {
+            return PLACE_FROM_ANY_SLOT
+        }
+        if (assist == SuperagentAssist.DestroyObstacles) {
+            return DESTROY_OBSTACLES
+        }
+        return PLACE_ON_MOVE
     }
 
     function showCharacterPulse() {
@@ -1686,6 +1712,193 @@ namespace superagent {
     export function showScoreboard() {
         runAtAgent("scoreboard objectives add sa_score dummy")
         runAtAgent("scoreboard objectives setdisplay sidebar sa_score")
+    }
+
+    /**
+     * Agent command mirror: move the Minecraft Agent in a direction.
+     */
+    //% blockId=superagent_agent_move block="superagent agent move %direction steps %steps"
+    //% steps.min=1 steps.max=64
+    //% group="Agent Work"
+    export function agentMove(direction: SuperagentSense, steps: number) {
+        agent.move(senseDirection(direction), clamp(steps, 1, 64))
+    }
+
+    /**
+     * Agent command mirror: turn the Minecraft Agent left or right.
+     */
+    //% blockId=superagent_agent_turn block="superagent agent turn %turn"
+    //% group="Agent Work"
+    export function agentTurn(turn: SuperagentTurn) {
+        agent.turn(turn == SuperagentTurn.Left ? TurnDirection.Left : TurnDirection.Right)
+    }
+
+    /**
+     * Agent command mirror: enable or disable an Agent assist.
+     */
+    //% blockId=superagent_agent_set_assist block="superagent agent assist %assist %on"
+    //% group="Agent Work"
+    export function agentSetAssist(assist: SuperagentAssist, on: boolean) {
+        agent.setAssist(assistKind(assist), on)
+    }
+
+    /**
+     * Agent command mirror: teleport the Minecraft Agent to the player.
+     */
+    //% blockId=superagent_agent_teleport_to_player block="superagent agent teleport to player"
+    //% group="Agent Work"
+    export function agentTeleportToPlayer() {
+        agent.teleportToPlayer()
+    }
+
+    /**
+     * Agent command mirror: place from the active Agent slot.
+     */
+    //% blockId=superagent_agent_place block="superagent agent place %direction"
+    //% group="Agent Work"
+    export function agentPlace(direction: SuperagentSense) {
+        agent.place(senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: destroy one block.
+     */
+    //% blockId=superagent_agent_destroy block="superagent agent destroy %direction"
+    //% group="Agent Work"
+    export function agentDestroy(direction: SuperagentSense) {
+        agent.destroy(senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: till farmland.
+     */
+    //% blockId=superagent_agent_till block="superagent agent till %direction"
+    //% group="Agent Work"
+    export function agentTill(direction: SuperagentSense) {
+        agent.till(senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: attack once.
+     */
+    //% blockId=superagent_agent_attack block="superagent agent attack %direction"
+    //% group="Agent Work"
+    export function agentAttack(direction: SuperagentSense) {
+        agent.attack(senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: interact with a block or entity.
+     */
+    //% blockId=superagent_agent_interact block="superagent agent interact %direction"
+    //% group="Agent Work"
+    export function agentInteract(direction: SuperagentSense) {
+        agent.interact(senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: select the active Agent inventory slot.
+     */
+    //% blockId=superagent_agent_set_slot block="superagent agent set slot %slot"
+    //% slot.min=1 slot.max=27
+    //% group="Agent Work"
+    export function agentSetSlot(slot: number) {
+        agent.setSlot(clamp(slot, 1, 27))
+    }
+
+    /**
+     * Agent command mirror: detect whether a block is present.
+     */
+    //% blockId=superagent_agent_detect_block block="superagent agent detect block %direction"
+    //% group="Agent Work"
+    export function agentDetectBlock(direction: SuperagentSense): boolean {
+        return agent.detect(AgentDetection.Block, senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: detect whether redstone is present.
+     */
+    //% blockId=superagent_agent_detect_redstone block="superagent agent detect redstone %direction"
+    //% group="Agent Work"
+    export function agentDetectRedstone(direction: SuperagentSense): boolean {
+        return agent.detect(AgentDetection.Redstone, senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: inspect a block id.
+     */
+    //% blockId=superagent_agent_inspect_block block="superagent agent inspect block %direction"
+    //% group="Agent Work"
+    export function agentInspectBlock(direction: SuperagentSense): number {
+        return agent.inspect(AgentInspection.Block, senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: inspect block data.
+     */
+    //% blockId=superagent_agent_inspect_data block="superagent agent inspect data %direction"
+    //% group="Agent Work"
+    export function agentInspectData(direction: SuperagentSense): number {
+        return agent.inspect(AgentInspection.Data, senseDirection(direction))
+    }
+
+    /**
+     * Agent command mirror: collect a specific item type.
+     */
+    //% blockId=superagent_agent_collect_item block="superagent agent collect item %item"
+    //% group="Agent Work"
+    export function agentCollectItem(item: number) {
+        agent.collect(item)
+    }
+
+    /**
+     * Agent command mirror: drop a quantity from one slot.
+     */
+    //% blockId=superagent_agent_drop block="superagent agent drop slot %slot amount %amount %direction"
+    //% slot.min=1 slot.max=27 amount.min=1 amount.max=64
+    //% group="Agent Work"
+    export function agentDrop(slot: number, amount: number, direction: SuperagentSense) {
+        agent.drop(senseDirection(direction), clamp(slot, 1, 27), clamp(amount, 1, 64))
+    }
+
+    /**
+     * Agent command mirror: move items between Agent inventory slots.
+     */
+    //% blockId=superagent_agent_transfer block="superagent agent transfer from slot %fromSlot amount %amount to slot %toSlot"
+    //% fromSlot.min=1 fromSlot.max=27 toSlot.min=1 toSlot.max=27 amount.min=1 amount.max=64
+    //% group="Agent Work"
+    export function agentTransfer(fromSlot: number, amount: number, toSlot: number) {
+        agent.transfer(clamp(fromSlot, 1, 27), clamp(amount, 1, 64), clamp(toSlot, 1, 27))
+    }
+
+    /**
+     * Agent command mirror: set an item stack in an Agent inventory slot.
+     */
+    //% blockId=superagent_agent_set_item block="superagent agent set item %item amount %amount slot %slot"
+    //% amount.min=0 amount.max=64 slot.min=1 slot.max=27
+    //% group="Agent Work"
+    export function agentSetItem(item: number, amount: number, slot: number) {
+        agent.setItem(item, clamp(amount, 0, 64), clamp(slot, 1, 27))
+    }
+
+    /**
+     * Agent command mirror: free space in an Agent inventory slot.
+     */
+    //% blockId=superagent_agent_item_space block="superagent agent item space in slot %slot"
+    //% slot.min=1 slot.max=27
+    //% group="Agent Work"
+    export function agentItemSpace(slot: number): number {
+        return agent.getItemSpace(clamp(slot, 1, 27))
+    }
+
+    /**
+     * Agent command mirror: item detail/data in an Agent inventory slot.
+     */
+    //% blockId=superagent_agent_item_detail block="superagent agent item detail in slot %slot"
+    //% slot.min=1 slot.max=27
+    //% group="Agent Work"
+    export function agentItemDetail(slot: number): number {
+        return agent.getItemDetail(clamp(slot, 1, 27))
     }
 
     /**
