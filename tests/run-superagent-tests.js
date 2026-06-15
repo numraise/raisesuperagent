@@ -914,6 +914,8 @@ test("superagent toolbox exposes position reporter blocks for labels", () => {
 test("superagent add-on can label and report its real entity world position", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function formatLocationText"));
+  assert(script.includes("function formatWholeCoord"));
+  assert(script.includes("x=${formatWholeCoord(location.x)} y=${formatWholeCoord(location.y)} z=${formatWholeCoord(location.z)}"));
   assert(script.includes("function applyWorldPositionLabel"));
   assert(script.includes("function reportWorldPosition"));
   assert(script.includes('event.id === "superagent:labelpos"'));

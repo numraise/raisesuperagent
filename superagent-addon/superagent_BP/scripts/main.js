@@ -560,8 +560,12 @@ function formatCoord(value) {
   return Math.round(value * 100) / 100;
 }
 
+function formatWholeCoord(value) {
+  return Math.round(value);
+}
+
 function formatLocationText(location) {
-  return `x=${formatCoord(location.x)} y=${formatCoord(location.y)} z=${formatCoord(location.z)}`;
+  return `x=${formatWholeCoord(location.x)} y=${formatWholeCoord(location.y)} z=${formatWholeCoord(location.z)}`;
 }
 
 function runCommandSafe(dimension, command) {
@@ -664,7 +668,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.45 script active");
+      player.sendMessage("superagent 0.1.46 script active");
     }
   } catch (error) {
   }
