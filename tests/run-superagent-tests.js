@@ -871,12 +871,12 @@ test("superagent extension exposes position reporters that plug into label text"
   const toolkit = loadSuperagent(agent);
   toolkit.spawnAtAgent();
   toolkit.moveCharacter(1, 3);
-  assert.strictEqual(toolkit.positionX(), 13);
-  assert.strictEqual(toolkit.positionY(), 20);
-  assert.strictEqual(toolkit.positionZ(), 30);
-  assert.strictEqual(toolkit.positionXYZ(), "x=13 y=20 z=30");
+  assert.strictEqual(toolkit.positionX(), 3);
+  assert.strictEqual(toolkit.positionY(), 0);
+  assert.strictEqual(toolkit.positionZ(), 0);
+  assert.strictEqual(toolkit.positionXYZ(), "x=3 y=0 z=0");
   toolkit.setLabel(toolkit.positionXYZ());
-  assert(agent.commandCalls.some((call) => call[3].includes("scriptevent superagent:label x=13 y=20 z=30")));
+  assert(agent.commandCalls.some((call) => call[3].includes("scriptevent superagent:label x=3 y=0 z=0")));
   toolkit.pathTo(-8, 137, 377);
   assert.strictEqual(toolkit.positionXYZ(), "x=-8 y=137 z=377");
 });

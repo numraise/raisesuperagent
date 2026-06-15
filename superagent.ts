@@ -128,6 +128,9 @@ namespace superagent {
     let followLoopStarted = false
     let followingAgent = false
     let superagentPosition = pos(0, 0, 0)
+    let trackedX = 0
+    let trackedY = 0
+    let trackedZ = 0
     let watchLoopStarted = false
     let watching = false
     let watcherKinds: number[] = []
@@ -175,12 +178,30 @@ namespace superagent {
         return Math.round(value)
     }
 
-    function positionAxis(position: Position, axis: Axis): number {
-        return roundedPositionValue(position.getValue(axis))
+    function setTrackedPosition(x: number, y: number, z: number) {
+        trackedX = roundedPositionValue(x)
+        trackedY = roundedPositionValue(y)
+        trackedZ = roundedPositionValue(z)
     }
 
-    function positionText(position: Position): string {
-        return "x=" + positionAxis(position, Axis.X) + " y=" + positionAxis(position, Axis.Y) + " z=" + positionAxis(position, Axis.Z)
+    function moveTrackedPosition(direction: SuperagentMoveDirection, blocks: number) {
+        if (direction == SuperagentMoveDirection.East) {
+            trackedX += blocks
+        } else if (direction == SuperagentMoveDirection.South) {
+            trackedZ += blocks
+        } else if (direction == SuperagentMoveDirection.West) {
+            trackedX -= blocks
+        } else if (direction == SuperagentMoveDirection.Up) {
+            trackedY += blocks
+        } else if (direction == SuperagentMoveDirection.Down) {
+            trackedY -= blocks
+        } else {
+            trackedZ -= blocks
+        }
+    }
+
+    function positionText(): string {
+        return "x=" + trackedX + " y=" + trackedY + " z=" + trackedZ
     }
 
     function selectSuperagentNear(position: Position, radius: number) {
@@ -557,6 +578,7 @@ namespace superagent {
         // Track the intended position for build/sense continuity, but let the
         // behavior pack do the actual stepping with block collision.
         superagentPosition = positions.add(superagentPosition, directionOffset(direction, blocks))
+        moveTrackedPosition(direction, blocks)
         runAtAgent("scriptevent superagent:step " + directionName(direction) + " " + blocks)
     }
 
@@ -1048,6 +1070,7 @@ namespace superagent {
         followingAgent = false
         ensureCharacter()
         superagentPosition = pos(x, y, z)
+        setTrackedPosition(x, y, z)
         runAtAgent("scriptevent superagent:goto " + x + " " + y + " " + z)
     }
 
@@ -1098,6 +1121,7 @@ namespace superagent {
         followingAgent = false
         ensureCharacter()
         superagentPosition = pos(x, y, z)
+        setTrackedPosition(x, y, z)
         runAtAgent("scriptevent superagent:pathto " + x + " " + y + " " + z)
     }
 
@@ -1189,7 +1213,7 @@ namespace superagent {
     //% blockId=superagent_position_text block="superagent position x y z"
     //% group="Values"
     export function positionXYZ(): string {
-        return positionText(superagentPosition)
+        return positionText()
     }
 
     /**
@@ -1198,7 +1222,7 @@ namespace superagent {
     //% blockId=superagent_position_x block="superagent x"
     //% group="Values"
     export function positionX(): number {
-        return positionAxis(superagentPosition, Axis.X)
+        return trackedX
     }
 
     /**
@@ -1207,7 +1231,7 @@ namespace superagent {
     //% blockId=superagent_position_y block="superagent y"
     //% group="Values"
     export function positionY(): number {
-        return positionAxis(superagentPosition, Axis.Y)
+        return trackedY
     }
 
     /**
@@ -1216,7 +1240,7 @@ namespace superagent {
     //% blockId=superagent_position_z block="superagent z"
     //% group="Values"
     export function positionZ(): number {
-        return positionAxis(superagentPosition, Axis.Z)
+        return trackedZ
     }
 
     /**
