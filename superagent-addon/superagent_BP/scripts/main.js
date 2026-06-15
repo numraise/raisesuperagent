@@ -331,12 +331,25 @@ function allNearbySuperagents(player) {
   });
 }
 
+function allDimensionSuperagents(player) {
+  return player.dimension.getEntities({
+    type: SUPER_AGENT_ID
+  });
+}
+
 // The single controllable character this player owns. Guards are excluded so
 // the dedupe step never deletes a squad guard, and another player's character
 // (different owner tag) is never touched either.
 function findOwnedSuperagents(player) {
   const tag = ownerTag(player);
   return allNearbySuperagents(player).filter(
+    (entity) => entity.hasTag(tag) && !entity.hasTag(GUARD_TAG)
+  );
+}
+
+function findOwnedSuperagentsInDimension(player) {
+  const tag = ownerTag(player);
+  return allDimensionSuperagents(player).filter(
     (entity) => entity.hasTag(tag) && !entity.hasTag(GUARD_TAG)
   );
 }
@@ -393,6 +406,18 @@ function removeEntitySafe(entity) {
   }
 }
 
+function clearMovementState(superagent) {
+  if (!superagent) {
+    return;
+  }
+  try {
+    superagent.setDynamicProperty(FOLLOW_WALK_PROP, false);
+  } catch (error) {
+  }
+  clearNavTarget(superagent);
+  clearPath(superagent);
+}
+
 // Ensure this player owns exactly one character. Adopts a nearby unowned
 // character (e.g. one summoned by the MakeCode extension) instead of spawning
 // a competing duplicate, then removes only this player's surplus copies.
@@ -423,6 +448,50 @@ function ensureOwnedSuperagent(player) {
     }
   }
   return superagent;
+}
+
+function nearestPlayerTo(entity) {
+  if (!entity) {
+    return undefined;
+  }
+  return closestEntity(world.getPlayers().filter((player) => player.dimension === entity.dimension), entity.location);
+}
+
+function transportSuperagentToEgg(spawned) {
+  if (!spawned || spawned.typeId !== SUPER_AGENT_ID) {
+    return;
+  }
+  const player = nearestPlayerTo(spawned);
+  if (!player) {
+    return;
+  }
+  const target = {
+    x: spawned.location.x,
+    y: spawned.location.y,
+    z: spawned.location.z
+  };
+  const owned = closestEntity(findOwnedSuperagentsInDimension(player), spawned.location);
+  if (owned && owned.id !== spawned.id) {
+    configureSuperagent(owned, player);
+    clearMovementState(owned);
+    try {
+      owned.teleport(target);
+    } catch (error) {
+    }
+    removeEntitySafe(spawned);
+    return;
+  }
+  configureSuperagent(spawned, player);
+  clearMovementState(spawned);
+  const tag = ownerTag(player);
+  for (const other of allNearbySuperagents(player)) {
+    if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
+      continue;
+    }
+    if (other.hasTag(tag) || !isOwnedByAnyone(other)) {
+      removeEntitySafe(other);
+    }
+  }
 }
 
 function isAttackTarget(entity) {
@@ -1288,8 +1357,7 @@ function handleReset(player) {
   removeGuards(player);
   const owned = ownedSuperagentForEvent(player);
   if (owned) {
-    owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
-    clearNavTarget(owned);
+    clearMovementState(owned);
     try {
       owned.setDynamicProperty(LABEL_PROPERTY, undefined);
     } catch (error) {
@@ -1305,9 +1373,7 @@ function handleRecall(player) {
   if (!owned) {
     return;
   }
-  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
-  clearNavTarget(owned);
-  clearPath(owned);
+  clearMovementState(owned);
   try {
     owned.teleport({ x: player.location.x, y: player.location.y, z: player.location.z });
   } catch (error) {
@@ -1316,6 +1382,15 @@ function handleRecall(player) {
 
 function isPlayerSource(entity) {
   return entity && entity.typeId === "minecraft:player";
+}
+
+try {
+  if (world.afterEvents && world.afterEvents.entitySpawn) {
+    world.afterEvents.entitySpawn.subscribe((event) => {
+      transportSuperagentToEgg(event.entity);
+    });
+  }
+} catch (entitySpawnError) {
 }
 
 try {

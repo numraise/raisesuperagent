@@ -943,6 +943,18 @@ test("superagent script keeps one owner-scoped character and does not self-match
   assert(script.includes('typeId.endsWith(":agent")'));
 });
 
+test("superagent spawn egg transports the owned character instead of leaving duplicates", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function transportSuperagentToEgg"));
+  assert(script.includes("function findOwnedSuperagentsInDimension"));
+  assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
+  assert(script.includes("transportSuperagentToEgg(event.entity)"));
+  assert(script.includes("closestEntity(findOwnedSuperagentsInDimension(player), spawned.location)"));
+  assert(script.includes("owned.teleport(target)"));
+  assert(script.includes("removeEntitySafe(spawned)"));
+  assert(script.includes("clearMovementState(owned)"));
+});
+
 test("superagent auto-combat is teacher-toggleable and off by default", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function combatEnabled"));
