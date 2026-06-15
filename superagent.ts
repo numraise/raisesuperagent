@@ -446,6 +446,16 @@ namespace superagent {
     }
 
     /**
+     * Show the character's real add-on world position above its head.
+     */
+    //% blockId=superagent_label_world_position block="superagent label world position"
+    //% group="Status"
+    export function labelWorldPosition() {
+        ensureCharacter()
+        runAtAgent("scriptevent superagent:labelpos")
+    }
+
+    /**
      * Turn the automatic guard (teacher-controlled combat) on or off.
      */
     //% blockId=superagent_auto_guard block="superagent auto guard %on"
@@ -2097,6 +2107,15 @@ namespace superagent {
     //% group="Communicate"
     export function report(text: string) {
         runAtAgent("title @s actionbar " + text)
+    }
+
+    /**
+     * Communicate: show the character's real add-on world position to the player.
+     */
+    //% blockId=superagent_report_world_position block="superagent report world position"
+    //% group="Communicate"
+    export function reportWorldPosition() {
+        runAtAgent("scriptevent superagent:reportpos")
     }
 
     /**

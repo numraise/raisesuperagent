@@ -560,6 +560,10 @@ function formatCoord(value) {
   return Math.round(value * 100) / 100;
 }
 
+function formatLocationText(location) {
+  return `x=${formatCoord(location.x)} y=${formatCoord(location.y)} z=${formatCoord(location.z)}`;
+}
+
 function runCommandSafe(dimension, command) {
   try {
     if (typeof dimension.runCommandAsync === "function") {
@@ -660,7 +664,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.44 script active");
+      player.sendMessage("superagent 0.1.45 script active");
     }
   } catch (error) {
   }
@@ -1082,6 +1086,33 @@ function applyLabelFromEvent(player, message) {
   }
 }
 
+function applyWorldPositionLabel(player) {
+  const owned = closestEntity(findOwnedSuperagents(player), player.location);
+  if (!owned) {
+    return;
+  }
+  try {
+    owned.setDynamicProperty(LABEL_PROPERTY, formatLocationText(owned.location).slice(0, 48));
+    applyLabel(owned);
+  } catch (error) {
+  }
+}
+
+function reportWorldPosition(player) {
+  const owned = closestEntity(findOwnedSuperagents(player), player.location);
+  if (!owned) {
+    return;
+  }
+  try {
+    player.onScreenDisplay.setActionBar(formatLocationText(owned.location));
+  } catch (error) {
+    try {
+      player.sendMessage(formatLocationText(owned.location));
+    } catch (sendError) {
+    }
+  }
+}
+
 function handleCombatToggle(message) {
   const msg = (message || "").trim().toLowerCase();
   if (msg === "on" || msg === "enable" || msg === "true" || msg === "1") {
@@ -1461,6 +1492,20 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     const player = event.sourceEntity;
     if (isPlayerSource(player)) {
       applyLabelFromEvent(player, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:labelpos") {
+    const player = event.sourceEntity;
+    if (isPlayerSource(player)) {
+      applyWorldPositionLabel(player);
+    }
+    return;
+  }
+  if (event.id === "superagent:reportpos") {
+    const player = event.sourceEntity;
+    if (isPlayerSource(player)) {
+      reportWorldPosition(player);
     }
     return;
   }

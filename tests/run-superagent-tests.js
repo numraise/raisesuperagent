@@ -858,10 +858,12 @@ test("superagent extension can label the character and toggle auto guard", () =>
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.setLabel("Scout");
+  toolkit.labelWorldPosition();
   toolkit.autoGuard(true);
   toolkit.autoGuard(false);
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("scriptevent superagent:label Scout")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:labelpos")));
   assert(commands.some((command) => command.includes("scriptevent superagent:combat on")));
   assert(commands.some((command) => command.includes("scriptevent superagent:combat off")));
 });
@@ -899,12 +901,23 @@ test("superagent toolbox exposes position reporter blocks for labels", () => {
   assert(source.includes('blockId=superagent_position_x block="superagent x"'));
   assert(source.includes('blockId=superagent_position_y block="superagent y"'));
   assert(source.includes('blockId=superagent_position_z block="superagent z"'));
+  assert(source.includes('blockId=superagent_label_world_position block="superagent label world position"'));
+  assert(source.includes('blockId=superagent_report_world_position block="superagent report world position"'));
   assert(source.includes('blockId=superagent_world_position_text block="superagent world position text"'));
   assert(source.includes('blockId=superagent_world_x block="superagent world x"'));
   assert(source.includes('blockId=superagent_world_y block="superagent world y"'));
   assert(source.includes('blockId=superagent_world_z block="superagent world z"'));
   assert(source.includes('blockId=superagent_world_position_at_text block="superagent world position text x %x y %y z %z"'));
   assert(source.includes('blockId=superagent_value_world_direction block="superagent world direction %direction"'));
+});
+
+test("superagent add-on can label and report its real entity world position", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function formatLocationText"));
+  assert(script.includes("function applyWorldPositionLabel"));
+  assert(script.includes("function reportWorldPosition"));
+  assert(script.includes('event.id === "superagent:labelpos"'));
+  assert(script.includes('event.id === "superagent:reportpos"'));
 });
 
 test("add-on manifests target Minecraft Education 1.21.133 compatible engine and stable script API", () => {
