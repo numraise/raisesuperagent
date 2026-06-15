@@ -175,8 +175,12 @@ namespace superagent {
         return Math.round(value)
     }
 
+    function positionAxis(position: Position, axis: Axis): number {
+        return roundedPositionValue(position.getValue(axis))
+    }
+
     function positionText(position: Position): string {
-        return "x=" + roundedPositionValue(position.x) + " y=" + roundedPositionValue(position.y) + " z=" + roundedPositionValue(position.z)
+        return "x=" + positionAxis(position, Axis.X) + " y=" + positionAxis(position, Axis.Y) + " z=" + positionAxis(position, Axis.Z)
     }
 
     function selectSuperagentNear(position: Position, radius: number) {
@@ -1194,7 +1198,7 @@ namespace superagent {
     //% blockId=superagent_position_x block="superagent x"
     //% group="Values"
     export function positionX(): number {
-        return roundedPositionValue(superagentPosition.x)
+        return positionAxis(superagentPosition, Axis.X)
     }
 
     /**
@@ -1203,7 +1207,7 @@ namespace superagent {
     //% blockId=superagent_position_y block="superagent y"
     //% group="Values"
     export function positionY(): number {
-        return roundedPositionValue(superagentPosition.y)
+        return positionAxis(superagentPosition, Axis.Y)
     }
 
     /**
@@ -1212,7 +1216,7 @@ namespace superagent {
     //% blockId=superagent_position_z block="superagent z"
     //% group="Values"
     export function positionZ(): number {
-        return roundedPositionValue(superagentPosition.z)
+        return positionAxis(superagentPosition, Axis.Z)
     }
 
     /**

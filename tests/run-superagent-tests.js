@@ -68,13 +68,13 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+superagent\s*\{/, "const superagent = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|string|Position|Superagent[A-Za-z0-9_]+)\s*\{/g, ") {")
+    .replace(/\)\s*:\s*(number|boolean|string|Position|Axis|Superagent[A-Za-z0-9_]+)\s*\{/g, ") {")
     .replace(/:\s*\(\(\)\s*=>\s*void\)\[\]/g, "")
     .replace(/:\s*\(\)\s*=>\s*void/g, "")
     .replace(/:\s*number\[\]/g, "")
     .replace(/:\s*boolean\[\]/g, "")
     .replace(/:\s*string\[\]/g, "")
-    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|Position|Superagent[A-Za-z0-9_]+)/g, "$1$2");
+    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|Position|Axis|Superagent[A-Za-z0-9_]+)/g, "$1$2");
 
   const privateNames = new Set([
     "clamp",
@@ -155,7 +155,7 @@ function createMockAgent() {
     },
     getPosition() {
       calls.push(["getPosition"]);
-      return { x: 10, y: 20, z: 30 };
+      return makePosition(10, 20, 30);
     },
     detect(detection, direction) {
       calls.push(["detect", detection, direction]);
@@ -173,6 +173,19 @@ function createMockAgent() {
     getItemCount(slot) {
       calls.push(["getItemCount", slot]);
       return 5;
+    },
+  };
+}
+
+function makePosition(x, y, z) {
+  return {
+    x,
+    y,
+    z,
+    getValue(axis) {
+      if (axis === 0) return x;
+      if (axis === 1) return y;
+      return z;
     },
   };
 }
@@ -218,12 +231,13 @@ function loadSuperagent(agent) {
     },
     positions: {
       add(p1, p2) {
-        return { x: p1.x + p2.x, y: p1.y + p2.y, z: p1.z + p2.z };
+        return makePosition(p1.x + p2.x, p1.y + p2.y, p1.z + p2.z);
       },
     },
     pos(x, y, z) {
-      return { x, y, z };
+      return makePosition(x, y, z);
     },
+    Axis: { X: 0, Y: 1, Z: 2 },
     LOCAL_PLAYER: "local_player",
     ALL_ENTITIES: "all_entities",
     AgentDetection: { Block: 0, Redstone: 1 },
