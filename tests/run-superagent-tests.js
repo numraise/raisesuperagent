@@ -852,6 +852,29 @@ test("superagent extension can label the character and toggle auto guard", () =>
   assert(commands.some((command) => command.includes("scriptevent superagent:combat off")));
 });
 
+test("superagent extension exposes position reporters that plug into label text", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtAgent();
+  toolkit.moveCharacter(1, 3);
+  assert.strictEqual(toolkit.positionX(), 13);
+  assert.strictEqual(toolkit.positionY(), 20);
+  assert.strictEqual(toolkit.positionZ(), 30);
+  assert.strictEqual(toolkit.positionXYZ(), "x=13 y=20 z=30");
+  toolkit.setLabel(toolkit.positionXYZ());
+  assert(agent.commandCalls.some((call) => call[3].includes("scriptevent superagent:label x=13 y=20 z=30")));
+  toolkit.pathTo(-8, 137, 377);
+  assert.strictEqual(toolkit.positionXYZ(), "x=-8 y=137 z=377");
+});
+
+test("superagent toolbox exposes position reporter blocks for labels", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(source.includes('blockId=superagent_position_text block="superagent position x y z"'));
+  assert(source.includes('blockId=superagent_position_x block="superagent x"'));
+  assert(source.includes('blockId=superagent_position_y block="superagent y"'));
+  assert(source.includes('blockId=superagent_position_z block="superagent z"'));
+});
+
 test("add-on manifests target Minecraft Education 1.21.133 compatible engine and stable script API", () => {
   const bp = readJson(path.join(ADDON, "superagent_BP", "manifest.json"));
   const rp = readJson(path.join(ADDON, "superagent_RP", "manifest.json"));

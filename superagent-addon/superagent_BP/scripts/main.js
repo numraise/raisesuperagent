@@ -660,7 +660,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.39 script active");
+      player.sendMessage("superagent 0.1.40 script active");
     }
   } catch (error) {
   }

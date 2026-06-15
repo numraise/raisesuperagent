@@ -171,6 +171,14 @@ namespace superagent {
         return "sa_" + key
     }
 
+    function roundedPositionValue(value: number): number {
+        return Math.round(value)
+    }
+
+    function positionText(position: Position): string {
+        return "x=" + roundedPositionValue(position.x) + " y=" + roundedPositionValue(position.y) + " z=" + roundedPositionValue(position.z)
+    }
+
     function selectSuperagentNear(position: Position, radius: number) {
         // Select by type within a radius of the command source (the player).
         // We avoid atCoordinate because the stored position can be relative, and
@@ -1035,6 +1043,7 @@ namespace superagent {
     export function walkTo(x: number, y: number, z: number) {
         followingAgent = false
         ensureCharacter()
+        superagentPosition = pos(x, y, z)
         runAtAgent("scriptevent superagent:goto " + x + " " + y + " " + z)
     }
 
@@ -1084,6 +1093,7 @@ namespace superagent {
     export function pathTo(x: number, y: number, z: number) {
         followingAgent = false
         ensureCharacter()
+        superagentPosition = pos(x, y, z)
         runAtAgent("scriptevent superagent:pathto " + x + " " + y + " " + z)
     }
 
@@ -1166,6 +1176,43 @@ namespace superagent {
     //% group="Values"
     export function transformValue(transform: SuperagentTransform): SuperagentTransform {
         return transform
+    }
+
+    /**
+     * Text reporter: the tracked superagent x/y/z position. Plug this into
+     * `superagent label` or `superagent report`.
+     */
+    //% blockId=superagent_position_text block="superagent position x y z"
+    //% group="Values"
+    export function positionXYZ(): string {
+        return positionText(superagentPosition)
+    }
+
+    /**
+     * Number reporter: tracked superagent x coordinate.
+     */
+    //% blockId=superagent_position_x block="superagent x"
+    //% group="Values"
+    export function positionX(): number {
+        return roundedPositionValue(superagentPosition.x)
+    }
+
+    /**
+     * Number reporter: tracked superagent y coordinate.
+     */
+    //% blockId=superagent_position_y block="superagent y"
+    //% group="Values"
+    export function positionY(): number {
+        return roundedPositionValue(superagentPosition.y)
+    }
+
+    /**
+     * Number reporter: tracked superagent z coordinate.
+     */
+    //% blockId=superagent_position_z block="superagent z"
+    //% group="Values"
+    export function positionZ(): number {
+        return roundedPositionValue(superagentPosition.z)
     }
 
     /**
