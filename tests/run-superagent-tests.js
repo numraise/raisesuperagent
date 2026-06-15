@@ -881,12 +881,30 @@ test("superagent extension exposes position reporters that plug into label text"
   assert.strictEqual(toolkit.positionXYZ(), "x=-8 y=137 z=377");
 });
 
+test("superagent extension exposes world position and world direction value blocks", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.pathTo(-8, 137, 377);
+  const current = toolkit.worldPosition();
+  assert.strictEqual(current.x, -8);
+  assert.strictEqual(current.y, 137);
+  assert.strictEqual(current.z, 377);
+  const made = toolkit.worldPositionAt(4, 70, -2);
+  assert.strictEqual(made.x, 4);
+  assert.strictEqual(made.y, 70);
+  assert.strictEqual(made.z, -2);
+  assert.strictEqual(toolkit.worldDirectionValue(1), 1);
+});
+
 test("superagent toolbox exposes position reporter blocks for labels", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
   assert(source.includes('blockId=superagent_position_text block="superagent position x y z"'));
   assert(source.includes('blockId=superagent_position_x block="superagent x"'));
   assert(source.includes('blockId=superagent_position_y block="superagent y"'));
   assert(source.includes('blockId=superagent_position_z block="superagent z"'));
+  assert(source.includes('blockId=superagent_world_position block="superagent world position"'));
+  assert(source.includes('blockId=superagent_world_position_at block="superagent world position x %x y %y z %z"'));
+  assert(source.includes('blockId=superagent_value_world_direction block="superagent world direction %direction"'));
 });
 
 test("add-on manifests target Minecraft Education 1.21.133 compatible engine and stable script API", () => {

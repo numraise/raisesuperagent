@@ -1207,6 +1207,33 @@ namespace superagent {
     }
 
     /**
+     * Value block: the tracked superagent world position as a Position capsule.
+     */
+    //% blockId=superagent_world_position block="superagent world position"
+    //% group="Values"
+    export function worldPosition(): Position {
+        return superagentPosition
+    }
+
+    /**
+     * Value block: make a world position capsule from x/y/z numbers.
+     */
+    //% blockId=superagent_world_position_at block="superagent world position x %x y %y z %z"
+    //% group="Values"
+    export function worldPositionAt(x: number, y: number, z: number): Position {
+        return pos(x, y, z)
+    }
+
+    /**
+     * Value block: use a world direction as a plug-in input for movement commands.
+     */
+    //% blockId=superagent_value_world_direction block="superagent world direction %direction"
+    //% group="Values"
+    export function worldDirectionValue(direction: SuperagentMoveDirection): SuperagentMoveDirection {
+        return direction
+    }
+
+    /**
      * Text reporter: the tracked superagent x/y/z position. Plug this into
      * `superagent label` or `superagent report`.
      */
