@@ -475,7 +475,7 @@ function transportSuperagentToEgg(spawned) {
     configureSuperagent(owned, player);
     clearMovementState(owned);
     try {
-      owned.teleport(target);
+      teleportEntityOpen(owned, target);
     } catch (error) {
     }
     removeEntitySafe(spawned);
@@ -532,11 +532,11 @@ function smartAttackTargets(superagent) {
 function weakenTarget(target) {
   target.addEffect("slowness", 80, {
     amplifier: isHighThreat(target) ? 2 : 1,
-    showParticles: true
+    showParticles: false
   });
   target.addEffect("weakness", 80, {
     amplifier: isHighThreat(target) ? 1 : 0,
-    showParticles: true
+    showParticles: false
   });
 }
 
@@ -598,16 +598,6 @@ function spawnParticleAny(dimension, names, location) {
   return false;
 }
 
-// Kept deliberately light: a single subtle sparkle above the character so it
-// doesn't obscure the view. The character already shows a name tag and texture.
-function emitPresenceParticles(dimension, location, tick) {
-  spawnParticleAny(dimension, ["minecraft:villager_happy"], {
-    x: location.x,
-    y: location.y + 1.2,
-    z: location.z
-  });
-}
-
 function attackAround(superagent, tick) {
   const targets = smartAttackTargets(superagent);
   for (const target of targets) {
@@ -637,11 +627,11 @@ function keepAlive(superagent) {
 function refreshAgentVisibleEffects(agentEntity) {
   addEffectSafe(agentEntity, "strength", 80, {
     amplifier: 1,
-    showParticles: true
+    showParticles: false
   });
   addEffectSafe(agentEntity, "resistance", 80, {
     amplifier: 0,
-    showParticles: true
+    showParticles: false
   });
 }
 
@@ -670,7 +660,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.38 script active");
+      player.sendMessage("superagent 0.1.39 script active");
     }
   } catch (error) {
   }
@@ -708,6 +698,71 @@ function readNavTarget(superagent) {
 
 // A cell blocks the path if it holds a solid (non-air, non-liquid) block.
 // Unloaded chunks return undefined and are treated as passable.
+
+function passableBlock(dimension, x, y, z) {
+  try {
+    const block = dimension.getBlock({ x, y, z });
+    if (!block) {
+      return true;
+    }
+    return block.isAir || block.isLiquid;
+  } catch (error) {
+    return true;
+  }
+}
+
+function locationIsOpen(dimension, location) {
+  const x = Math.floor(location.x);
+  const y = Math.floor(location.y);
+  const z = Math.floor(location.z);
+  return passableBlock(dimension, x, y, z) && passableBlock(dimension, x, y + 1, z);
+}
+
+function openLocationNear(dimension, location) {
+  if (locationIsOpen(dimension, location)) {
+    return location;
+  }
+  const baseX = Math.floor(location.x);
+  const baseY = Math.floor(location.y);
+  const baseZ = Math.floor(location.z);
+  for (let radius = 1; radius <= 4; radius++) {
+    for (let dy = 0 - radius; dy <= radius; dy++) {
+      for (let dx = 0 - radius; dx <= radius; dx++) {
+        for (let dz = 0 - radius; dz <= radius; dz++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) !== radius) {
+            continue;
+          }
+          const candidate = {
+            x: baseX + dx + 0.5,
+            y: baseY + dy,
+            z: baseZ + dz + 0.5
+          };
+          if (locationIsOpen(dimension, candidate)) {
+            return candidate;
+          }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function teleportEntityOpen(entity, location, options) {
+  if (!entity) {
+    return false;
+  }
+  const target = openLocationNear(entity.dimension, location);
+  if (!target) {
+    return false;
+  }
+  try {
+    entity.teleport(target, options || {});
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 function blockIsObstacle(dimension, x, y, z) {
   try {
     const block = dimension.getBlock({ x, y, z });
@@ -813,10 +868,7 @@ function stepAlongPath(superagent) {
     }
     return true;
   }
-  try {
-    superagent.teleport({ x: next.x, y: next.y, z: next.z }, { facingLocation: waypoint });
-  } catch (error) {
-  }
+  teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, { facingLocation: waypoint });
   return true;
 }
 
@@ -855,7 +907,7 @@ function navStep(player, superagent) {
     return;
   }
   try {
-    superagent.teleport({ x: next.x, y: next.y, z: next.z }, { facingLocation: target });
+    teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, { facingLocation: target });
   } catch (error) {
   }
 }
@@ -982,7 +1034,7 @@ function guardStep(player, guard, index, tick) {
   const guardBlocked = blockIsObstacle(guard.dimension, Math.round(next.x), Math.round(next.y), Math.round(next.z));
   if (!next.arrived && !isFrozen() && !guardBlocked) {
     try {
-      guard.teleport({ x: next.x, y: next.y, z: next.z }, { facingLocation: target });
+      teleportEntityOpen(guard, { x: next.x, y: next.y, z: next.z }, { facingLocation: target });
     } catch (error) {
     }
   }
@@ -1096,7 +1148,7 @@ function handleStep(player, message) {
     cz = nz;
   }
   try {
-    owned.teleport({ x: cx + 0.5, y: cy, z: cz + 0.5 });
+    teleportEntityOpen(owned, { x: cx + 0.5, y: cy, z: cz + 0.5 });
   } catch (error) {
   }
 }
@@ -1136,12 +1188,15 @@ function parseNumberArg(message, def, min, max) {
 }
 
 function powerAnchor(player) {
-  return ownedSuperagentForEvent(player) || player;
+  return ownedSuperagentForEvent(player);
 }
 
 // Strike the nearest hostile with a lightning bolt.
 function handleLightning(player) {
   const anchor = powerAnchor(player);
+  if (!anchor) {
+    return;
+  }
   const dimension = anchor.dimension;
   const hostiles = dimension.getEntities({ location: anchor.location, maxDistance: 14 }).filter(isAttackTarget);
   const target = closestEntity(hostiles, anchor.location);
@@ -1157,6 +1212,9 @@ function handleLightning(player) {
 // Knock every nearby hostile away from the character.
 function handleBlast(player, message) {
   const anchor = powerAnchor(player);
+  if (!anchor) {
+    return;
+  }
   const radius = parseNumberArg(message, 6, 1, 16);
   const origin = anchor.location;
   for (const mob of anchor.dimension.getEntities({ location: origin, maxDistance: radius }).filter(isAttackTarget)) {
@@ -1177,13 +1235,13 @@ function handleBlast(player, message) {
 // Give the player a protective shield.
 function handleShield(player, message) {
   const seconds = parseNumberArg(message, 15, 1, 120);
-  addEffectSafe(player, "resistance", seconds * 20, { amplifier: 2, showParticles: true });
-  addEffectSafe(player, "absorption", seconds * 20, { amplifier: 1, showParticles: true });
+  addEffectSafe(player, "resistance", seconds * 20, { amplifier: 2, showParticles: false });
+  addEffectSafe(player, "absorption", seconds * 20, { amplifier: 1, showParticles: false });
 }
 
 // Heal the player to full and grant regeneration.
 function handleHeal(player) {
-  addEffectSafe(player, "regeneration", 100, { amplifier: 2, showParticles: true });
+  addEffectSafe(player, "regeneration", 100, { amplifier: 2, showParticles: false });
   try {
     const health = player.getComponent("minecraft:health");
     if (health) {
@@ -1342,7 +1400,7 @@ function handleFreeze(message) {
 function handleGather(player) {
   for (const superagent of allNearbySuperagents(player)) {
     try {
-      superagent.teleport({
+      teleportEntityOpen(superagent, {
         x: player.location.x,
         y: player.location.y,
         z: player.location.z
@@ -1375,7 +1433,7 @@ function handleRecall(player) {
   }
   clearMovementState(owned);
   try {
-    owned.teleport({ x: player.location.x, y: player.location.y, z: player.location.z });
+    teleportEntityOpen(owned, { x: player.location.x, y: player.location.y, z: player.location.z });
   } catch (error) {
   }
 }
@@ -1564,9 +1622,10 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
       }),
       anchor.location
     );
-    const attackAnchor = superagent || anchor;
-    emitPresenceParticles(attackAnchor.dimension, attackAnchor.location, system.currentTick);
-    attackAround(attackAnchor, system.currentTick);
+    if (!superagent) {
+      continue;
+    }
+    attackAround(superagent, system.currentTick);
     startSpin(superagent);
   }
 });

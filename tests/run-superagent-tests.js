@@ -303,12 +303,12 @@ test("superagent extension emits visible aura and sync commands at the Agent pos
   toolkit.keepAuraOn();
   const commands = agent.commandCalls.map((call) => call[3]);
   // Spawning is delegated to the behavior pack; the extension cleans up legacy
-  // markers and positions the character via teleport + particles.
+  // markers and positions the character without ambient player particles.
   assert(commands.some((command) => command.includes("kill @e[type=minecraft:armor_stand")));
   assert(!commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
   assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition"));
-  assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
-  assert(commands.some((command) => command.includes("particle minecraft:basic_flame_particle")));
+  assert(!commands.some((command) => command.includes("particle superagent:agent_aura")));
+  assert(!commands.some((command) => command.includes("particle minecraft:basic_flame_particle")));
   assert(agent.commandCalls.every((call) => call[2].x === 10 && call[2].y === 20 && call[2].z === 30));
 });
 
@@ -321,7 +321,7 @@ test("superagent extension controls an independent one-block character position"
   const commands = agent.commandCalls.map((call) => call[3]);
   const positions = agent.commandCalls.map((call) => call[2]);
   assert(commands.some((command) => command.includes("particle superagent:attack_burst")));
-  assert(commands.some((command) => command.includes("particle superagent:agent_aura")));
+  assert(!commands.some((command) => command.includes("particle superagent:agent_aura")));
   // Damage is delegated to the behavior pack via a scriptevent (reliable on Education).
   assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
   assert(!commands.some((command) => command.includes("tp @e[type=superagent:superagent")));
@@ -337,7 +337,7 @@ test("superagent extension can run and stop a follow-agent loop", () => {
   toolkit.followAgentOn();
   toolkit.followAgentOff();
   assert(agent.calls.some((call) => call[0] === "forever"));
-  assert(agent.commandCalls.some((call) => call[3].includes("particle superagent:agent_aura")));
+  assert(!agent.commandCalls.some((call) => call[3].includes("particle superagent:agent_aura")));
 });
 
 test("superagent extension provides many smart movement commands", () => {
@@ -883,7 +883,7 @@ test("superagent entity is a visible one-block programmable character", () => {
     deals_damage: "no",
   });
   assert(components["minecraft:persistent"]);
-  assert.strictEqual(components["minecraft:physics"].has_collision, false);
+  assert.strictEqual(components["minecraft:physics"].has_collision, true);
   assert.strictEqual(components["minecraft:physics"].has_gravity, false);
   assert.strictEqual(components["minecraft:nameable"].always_show, true);
   assert.strictEqual(components["minecraft:scale"].value, 1.0);
@@ -946,11 +946,13 @@ test("superagent script keeps one owner-scoped character and does not self-match
 test("superagent spawn egg transports the owned character instead of leaving duplicates", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function transportSuperagentToEgg"));
+  assert(script.includes("function teleportEntityOpen"));
+  assert(script.includes("function openLocationNear"));
   assert(script.includes("function findOwnedSuperagentsInDimension"));
   assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
   assert(script.includes("transportSuperagentToEgg(event.entity)"));
   assert(script.includes("closestEntity(findOwnedSuperagentsInDimension(player), spawned.location)"));
-  assert(script.includes("owned.teleport(target)"));
+  assert(script.includes("teleportEntityOpen(owned, target)"));
   assert(script.includes("removeEntitySafe(spawned)"));
   assert(script.includes("clearMovementState(owned)"));
 });
@@ -985,6 +987,9 @@ test("superagent script keeps the idle character clean (no per-tick particles)",
   assert(script.includes("function spawnParticleCommand"));
   assert(!script.includes('addEffectSafe(superagent, "invisibility"'));
   assert(script.includes("function tickSuperagent"));
+  assert(script.includes("return ownedSuperagentForEvent(player);"));
+  assert(!script.includes("ownedSuperagentForEvent(player) || player"));
+  assert(!script.includes("const attackAnchor = superagent || anchor"));
   // The idle character must NOT spew presence/status particles every tick.
   assert(!script.includes("emitPresenceParticles(superagent.dimension, superagent.location, tick)"));
 });
@@ -1039,4 +1044,14 @@ test("superagent toolbox hides duplicate or weakly verified legacy blocks", () =
   ].forEach((blockId) => {
     assert(!source.includes(`blockId=${blockId} `), blockId);
   });
+});
+
+test("superagent toolbox exposes value blocks for pluggable enum sockets", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(source.includes('blockId=superagent_value_move_direction block="superagent direction %direction"'));
+  assert(source.includes('blockId=superagent_value_sense_direction block="superagent sense direction %direction"'));
+  assert(source.includes('blockId=superagent_value_mob block="superagent mob %mob"'));
+  assert(source.includes('blockId=superagent_value_block block="superagent block %block"'));
+  assert(source.includes('blockId=superagent_value_transform block="superagent transform %transform"'));
+  assert(source.includes('group="Values"'));
 });

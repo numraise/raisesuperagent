@@ -220,8 +220,8 @@ namespace superagent {
     function ensureCharacter() {
         // The behavior pack spawns, protects and positions the character. We no
         // longer force-teleport it here because that ignored block collision and
-        // would undo collision-aware moves. Just refresh the visual pulse.
-        showCharacterPulse()
+        // would undo collision-aware moves. Avoid ambient particles so effects
+        // never appear to come from the player.
     }
 
     function directionName(direction: SuperagentMoveDirection): string {
@@ -244,12 +244,7 @@ namespace superagent {
     }
 
     function showCharacterPulse() {
-        runAtSuperagent("particle superagent:agent_aura ~ ~0.5 ~")
-        runAtSuperagent("particle superagent:agent_spark ~ ~1.1 ~")
-        runAtSuperagent("particle minecraft:basic_flame_particle ~0.65 ~0.2 ~")
-        runAtSuperagent("particle minecraft:basic_flame_particle ~-0.65 ~0.2 ~")
-        runAtSuperagent("particle minecraft:basic_flame_particle ~ ~0.2 ~0.65")
-        runAtSuperagent("particle minecraft:basic_flame_particle ~ ~0.2 ~-0.65")
+        // Kept for legacy callers; intentionally no-op.
     }
 
     function ensureFollowLoop() {
@@ -275,8 +270,6 @@ namespace superagent {
 
     function auraPulseCommands() {
         showCharacterPulse()
-        runAtSuperagent("particle minecraft:totem_particle ~ ~1.25 ~")
-        runAtSuperagent("particle minecraft:villager_happy ~ ~1.6 ~")
     }
 
     function attackCommandBurst(strength: number) {
@@ -1128,6 +1121,51 @@ namespace superagent {
             return "air"
         }
         return "stone"
+    }
+
+    /**
+     * Value block: use a direction as a plug-in input for other superagent blocks.
+     */
+    //% blockId=superagent_value_move_direction block="superagent direction %direction"
+    //% group="Values"
+    export function moveDirectionValue(direction: SuperagentMoveDirection): SuperagentMoveDirection {
+        return direction
+    }
+
+    /**
+     * Value block: use a sensing direction as a plug-in input for sensing/event blocks.
+     */
+    //% blockId=superagent_value_sense_direction block="superagent sense direction %direction"
+    //% group="Values"
+    export function senseDirectionValue(direction: SuperagentSense): SuperagentSense {
+        return direction
+    }
+
+    /**
+     * Value block: use a mob type as a plug-in input for sensing blocks.
+     */
+    //% blockId=superagent_value_mob block="superagent mob %mob"
+    //% group="Values"
+    export function mobValue(mob: SuperagentMobType): SuperagentMobType {
+        return mob
+    }
+
+    /**
+     * Value block: use a block type as a plug-in input for build and block-sensing blocks.
+     */
+    //% blockId=superagent_value_block block="superagent block %block"
+    //% group="Values"
+    export function blockValue(block: SuperagentBlock): SuperagentBlock {
+        return block
+    }
+
+    /**
+     * Value block: use a blueprint transform as a plug-in input for transformed layer builds.
+     */
+    //% blockId=superagent_value_transform block="superagent transform %transform"
+    //% group="Values"
+    export function transformValue(transform: SuperagentTransform): SuperagentTransform {
+        return transform
     }
 
     /**
