@@ -881,18 +881,15 @@ test("superagent extension exposes position reporters that plug into label text"
   assert.strictEqual(toolkit.positionXYZ(), "x=-8 y=137 z=377");
 });
 
-test("superagent extension exposes world position and world direction value blocks", () => {
+test("superagent extension exposes world position text/number and world direction value blocks", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.pathTo(-8, 137, 377);
-  const current = toolkit.worldPosition();
-  assert.strictEqual(current.x, -8);
-  assert.strictEqual(current.y, 137);
-  assert.strictEqual(current.z, 377);
-  const made = toolkit.worldPositionAt(4, 70, -2);
-  assert.strictEqual(made.x, 4);
-  assert.strictEqual(made.y, 70);
-  assert.strictEqual(made.z, -2);
+  assert.strictEqual(toolkit.worldPositionText(), "x=-8 y=137 z=377");
+  assert.strictEqual(toolkit.worldX(), -8);
+  assert.strictEqual(toolkit.worldY(), 137);
+  assert.strictEqual(toolkit.worldZ(), 377);
+  assert.strictEqual(toolkit.worldPositionAtText(4, 70, -2), "x=4 y=70 z=-2");
   assert.strictEqual(toolkit.worldDirectionValue(1), 1);
 });
 
@@ -902,8 +899,11 @@ test("superagent toolbox exposes position reporter blocks for labels", () => {
   assert(source.includes('blockId=superagent_position_x block="superagent x"'));
   assert(source.includes('blockId=superagent_position_y block="superagent y"'));
   assert(source.includes('blockId=superagent_position_z block="superagent z"'));
-  assert(source.includes('blockId=superagent_world_position block="superagent world position"'));
-  assert(source.includes('blockId=superagent_world_position_at block="superagent world position x %x y %y z %z"'));
+  assert(source.includes('blockId=superagent_world_position_text block="superagent world position text"'));
+  assert(source.includes('blockId=superagent_world_x block="superagent world x"'));
+  assert(source.includes('blockId=superagent_world_y block="superagent world y"'));
+  assert(source.includes('blockId=superagent_world_z block="superagent world z"'));
+  assert(source.includes('blockId=superagent_world_position_at_text block="superagent world position text x %x y %y z %z"'));
   assert(source.includes('blockId=superagent_value_world_direction block="superagent world direction %direction"'));
 });
 

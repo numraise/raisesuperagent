@@ -1207,30 +1207,57 @@ namespace superagent {
     }
 
     /**
-     * Value block: the tracked superagent world position as a Position capsule.
-     */
-    //% blockId=superagent_world_position block="superagent world position"
-    //% group="Values"
-    export function worldPosition(): Position {
-        return superagentPosition
-    }
-
-    /**
-     * Value block: make a world position capsule from x/y/z numbers.
-     */
-    //% blockId=superagent_world_position_at block="superagent world position x %x y %y z %z"
-    //% group="Values"
-    export function worldPositionAt(x: number, y: number, z: number): Position {
-        return pos(x, y, z)
-    }
-
-    /**
      * Value block: use a world direction as a plug-in input for movement commands.
      */
     //% blockId=superagent_value_world_direction block="superagent world direction %direction"
     //% group="Values"
     export function worldDirectionValue(direction: SuperagentMoveDirection): SuperagentMoveDirection {
         return direction
+    }
+
+    /**
+     * Text reporter: the tracked superagent world position.
+     */
+    //% blockId=superagent_world_position_text block="superagent world position text"
+    //% group="Values"
+    export function worldPositionText(): string {
+        return positionText()
+    }
+
+    /**
+     * Number reporter: tracked superagent world x coordinate.
+     */
+    //% blockId=superagent_world_x block="superagent world x"
+    //% group="Values"
+    export function worldX(): number {
+        return trackedX
+    }
+
+    /**
+     * Number reporter: tracked superagent world y coordinate.
+     */
+    //% blockId=superagent_world_y block="superagent world y"
+    //% group="Values"
+    export function worldY(): number {
+        return trackedY
+    }
+
+    /**
+     * Number reporter: tracked superagent world z coordinate.
+     */
+    //% blockId=superagent_world_z block="superagent world z"
+    //% group="Values"
+    export function worldZ(): number {
+        return trackedZ
+    }
+
+    /**
+     * Text reporter: make a readable world position from x/y/z numbers.
+     */
+    //% blockId=superagent_world_position_at_text block="superagent world position text x %x y %y z %z"
+    //% group="Values"
+    export function worldPositionAtText(x: number, y: number, z: number): string {
+        return "x=" + x + " y=" + y + " z=" + z
     }
 
     /**
