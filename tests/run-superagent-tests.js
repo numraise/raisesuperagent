@@ -921,6 +921,15 @@ test("superagent script faces a direction on command", () => {
   assert(!script.includes("rot.x = 90"));
 });
 
+test("superagent script keeps idle and spawned cubes grid aligned", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function snapEntityToGridAlignment"));
+  assert(script.includes("snapEntityToGridAlignment(superagent);"));
+  assert(script.includes("snapEntityToGridAlignment(superagent, true);"));
+  assert(script.includes("snapEntityToGridAlignment(guard);"));
+  assert(script.includes("const MAINTENANCE_TICKS = 10;"));
+});
+
 test("superagent special powers send the right scriptevents", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);

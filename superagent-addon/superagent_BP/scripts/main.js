@@ -162,7 +162,7 @@ const ATTACK_DAMAGE = 14;
 const MAX_ATTACK_TARGETS = 12;
 const FOLLOW_RADIUS = 128;
 const TICK_RATE = 2;
-const MAINTENANCE_TICKS = 20;
+const MAINTENANCE_TICKS = 10;
 const PRESENCE_RADIUS = 1.35;
 const MOVE_SPEED = 0.45;
 const GUARD_SPEED = 0.6;
@@ -454,6 +454,7 @@ function configureSuperagent(superagent, player) {
   applyLabel(superagent);
   superagent.addTag(ROOT_TAG);
   superagent.addTag(ownerTag(player));
+  snapEntityToGridAlignment(superagent);
   addEffectSafe(superagent, "resistance", 200, {
     amplifier: 255,
     showParticles: false
@@ -489,18 +490,24 @@ function clearMovementState(superagent) {
 function ensureOwnedSuperagent(player) {
   const owned = findOwnedSuperagents(player);
   let superagent = owned.length > 0 ? closestEntity(owned, player.location) : undefined;
+  let resetAlignment = false;
   if (!superagent) {
     const unowned = allNearbySuperagents(player).filter((entity) => !isOwnedByAnyone(entity));
     superagent = closestEntity(unowned, player.location);
+    resetAlignment = !!superagent;
   }
   if (!superagent) {
     try {
       superagent = player.dimension.spawnEntity(SUPER_AGENT_ID, player.location);
+      resetAlignment = true;
     } catch (error) {
       return undefined;
     }
   }
   configureSuperagent(superagent, player);
+  if (resetAlignment) {
+    snapEntityToGridAlignment(superagent, true);
+  }
   // Remove every other nearby character that is mine or has no owner (leftovers
   // from older summon-based builds). Guards and other players' characters stay.
   const tag = ownerTag(player);
@@ -548,6 +555,7 @@ function transportSuperagentToEgg(spawned) {
     return;
   }
   configureSuperagent(spawned, player);
+  snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
   playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
   const tag = ownerTag(player);
@@ -771,7 +779,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.57 script active");
+      player.sendMessage("superagent 0.1.58 script active");
     }
   } catch (error) {
   }
@@ -928,6 +936,25 @@ function setGridAlignedRotation(entity, rotation) {
   } catch (error) {
   }
   return false;
+}
+
+function entityRotation(entity) {
+  if (!entity || typeof entity.getRotation !== "function") {
+    return { x: 0, y: 0 };
+  }
+  try {
+    return entity.getRotation();
+  } catch (error) {
+    return { x: 0, y: 0 };
+  }
+}
+
+function snapEntityToGridAlignment(entity, resetYaw) {
+  if (!entity) {
+    return false;
+  }
+  const rotation = resetYaw === true ? { x: 0, y: 0 } : entityRotation(entity);
+  return setGridAlignedRotation(entity, rotation);
 }
 
 function teleportEntityOpen(entity, location, options) {
@@ -1184,6 +1211,7 @@ function tickSuperagent(player, superagent, tick) {
   if (tick % MAINTENANCE_TICKS === 0) {
     configureSuperagent(superagent, player);
     keepAlive(superagent);
+    snapEntityToGridAlignment(superagent);
   }
   navStep(player, superagent);
   spinIfActive(superagent, tick);
@@ -1212,6 +1240,7 @@ function spawnGuard(player) {
   }
   guard.addTag(GUARD_TAG);
   configureSuperagent(guard, player);
+  snapEntityToGridAlignment(guard);
   playDogSound(guard, "ready", { volume: 0.6, pitch: 1.1 });
   return guard;
 }
