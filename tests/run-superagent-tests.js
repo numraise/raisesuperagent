@@ -68,19 +68,20 @@ function transformMakeCodeTs(source) {
     })
     .replace(/namespace\s+superagent\s*\{/, "const superagent = (() => {\n")
     .replace(/export\s+function\s+(\w+)\s*\(/g, "function $1(")
-    .replace(/\)\s*:\s*(number|boolean|string|Position|Axis|Superagent[A-Za-z0-9_]+)\s*\{/g, ") {")
+    .replace(/\)\s*:\s*(number|boolean|string|any|Position|Axis|Superagent[A-Za-z0-9_]+)\s*\{/g, ") {")
     .replace(/:\s*\(\(\)\s*=>\s*void\)\[\]/g, "")
     .replace(/:\s*\(\)\s*=>\s*void/g, "")
     .replace(/:\s*number\[\]/g, "")
     .replace(/:\s*boolean\[\]/g, "")
     .replace(/:\s*string\[\]/g, "")
-    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|Position|Axis|Superagent[A-Za-z0-9_]+)/g, "$1$2");
+    .replace(/([,(]\s*)([a-z][A-Za-z0-9_]*)\s*:\s*(number|boolean|string|any|Position|Axis|Superagent[A-Za-z0-9_]+)/g, "$1$2");
 
   const privateNames = new Set([
     "clamp",
     "attackDirection",
     "runAtAgent",
     "runAtSuperagent",
+    "textValue",
     "setSuperagentPosition",
     "selectSuperagentNear",
     "teleportCharacterFrom",
@@ -971,6 +972,25 @@ test("superagent extension exposes position reporters that plug into label text"
   assert(agent.commandCalls.some((call) => call[3].includes("scriptevent superagent:label x=3 y=0 z=0")));
   toolkit.pathTo(-8, 137, 377);
   assert.strictEqual(toolkit.positionXYZ(), "x=-8 y=137 z=377");
+});
+
+test("superagent text sockets accept value reporters such as numbers and booleans", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.pathTo(-8, 137, 377);
+  toolkit.setLabel(toolkit.worldZ());
+  toolkit.report(toolkit.hasItems(1, 10));
+  toolkit.missionStart(toolkit.worldX());
+  toolkit.remember(toolkit.worldY(), 2);
+  toolkit.countUp(toolkit.worldZ());
+  toolkit.buildRowPattern(0, 10101);
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:label 377")));
+  assert(commands.some((command) => command.includes("title @s actionbar false")));
+  assert(commands.some((command) => command.includes("title @s title -8")));
+  assert(commands.some((command) => command.includes("scoreboard objectives add sa_137 dummy")));
+  assert(commands.some((command) => command.includes("scoreboard objectives add sa_377 dummy")));
+  assert(commands.some((command) => command.includes("setblock ~0 ~ ~ stone")));
 });
 
 test("superagent extension exposes world position text/number and world direction value blocks", () => {

@@ -186,8 +186,12 @@ namespace superagent {
         return mobs.execute(mobs.target(LOCAL_PLAYER), superagentPosition, command)
     }
 
-    function memoryObjective(key: string): string {
-        return "sa_" + key
+    function textValue(value: any): string {
+        return "" + value
+    }
+
+    function memoryObjective(key: any): string {
+        return "sa_" + textValue(key)
     }
 
     function roundedPositionValue(value: number): number {
@@ -466,9 +470,9 @@ namespace superagent {
      */
     //% blockId=superagent_set_label block="superagent label %text"
     //% group="Status"
-    export function setLabel(text: string) {
+    export function setLabel(text: any) {
         ensureCharacter()
-        runAtAgent("scriptevent superagent:label " + text)
+        runAtAgent("scriptevent superagent:label " + textValue(text))
     }
 
     /**
@@ -1405,11 +1409,12 @@ namespace superagent {
      */
     //% blockId=superagent_build_pattern block="superagent build row %block pattern %pattern"
     //% group="Build"
-    export function buildRowPattern(block: SuperagentBlock, pattern: string): number {
+    export function buildRowPattern(block: SuperagentBlock, pattern: any): number {
         ensureCharacter()
+        let row = textValue(pattern)
         let placed = 0
-        for (let i = 0; i < pattern.length; i++) {
-            let cell = pattern.charAt(i)
+        for (let i = 0; i < row.length; i++) {
+            let cell = row.charAt(i)
             if (cell == "X" || cell == "x" || cell == "#" || cell == "1") {
                 runAtSuperagent("setblock ~" + i + " ~ ~ " + blockId(block))
                 placed++
@@ -1576,7 +1581,7 @@ namespace superagent {
      */
     //% blockId=superagent_remember block="superagent remember %key = %value"
     //% group="Memory"
-    export function remember(key: string, value: number) {
+    export function remember(key: any, value: number) {
         let objective = memoryObjective(key)
         runAtAgent("scoreboard objectives add " + objective + " dummy")
         runAtAgent("scoreboard players set @s " + objective + " " + value)
@@ -1587,7 +1592,7 @@ namespace superagent {
      */
     //% blockId=superagent_forget block="superagent forget %key"
     //% group="Memory"
-    export function forget(key: string) {
+    export function forget(key: any) {
         runAtAgent("scoreboard players reset @s " + memoryObjective(key))
     }
 
@@ -1596,7 +1601,7 @@ namespace superagent {
      */
     //% blockId=superagent_memory_equals block="superagent memory %key = %value"
     //% group="Memory"
-    export function memoryEquals(key: string, value: number): boolean {
+    export function memoryEquals(key: any, value: number): boolean {
         return runAtAgent("scoreboard players test @s " + memoryObjective(key) + " " + value + " " + value)
     }
 
@@ -1605,7 +1610,7 @@ namespace superagent {
      */
     //% blockId=superagent_memory_at_least block="superagent memory %key >= %value"
     //% group="Memory"
-    export function memoryAtLeast(key: string, value: number): boolean {
+    export function memoryAtLeast(key: any, value: number): boolean {
         return runAtAgent("scoreboard players test @s " + memoryObjective(key) + " " + value + " 2147483647")
     }
 
@@ -1615,7 +1620,7 @@ namespace superagent {
     //% blockId=superagent_memory_value block="superagent memory %key value up to %max"
     //% max.min=1 max.max=1024
     //% group="Memory"
-    export function memoryValue(key: string, max: number): number {
+    export function memoryValue(key: any, max: number): number {
         max = clamp(max, 1, 1024)
         for (let v = 0; v <= max; v++) {
             if (memoryEquals(key, v)) {
@@ -1672,11 +1677,12 @@ namespace superagent {
     /**
      * Announce a mission title on screen and label the character.
      */
-    export function missionStart(title: string) {
+    export function missionStart(title: any) {
+        let text = textValue(title)
         ensureCharacter()
         runAtAgent("scoreboard objectives add sa_score dummy")
-        runAtAgent("title @s title " + title)
-        setLabel(title)
+        runAtAgent("title @s title " + text)
+        setLabel(text)
     }
 
     /**
@@ -2256,7 +2262,7 @@ namespace superagent {
      */
     //% blockId=superagent_count_up block="superagent count up %key"
     //% group="Thinking"
-    export function countUp(key: string) {
+    export function countUp(key: any) {
         let value = memoryValue(key, 1024)
         if (value < 0) {
             value = 0
@@ -2269,7 +2275,7 @@ namespace superagent {
      */
     //% blockId=superagent_set_flag block="superagent set flag %key %on"
     //% group="Thinking"
-    export function setFlag(key: string, on: boolean) {
+    export function setFlag(key: any, on: boolean) {
         remember(key, on ? 1 : 0)
     }
 
@@ -2278,7 +2284,7 @@ namespace superagent {
      */
     //% blockId=superagent_flag_is_on block="superagent flag %key is on"
     //% group="Thinking"
-    export function flagIsOn(key: string): boolean {
+    export function flagIsOn(key: any): boolean {
         return memoryEquals(key, 1)
     }
 
@@ -2318,8 +2324,8 @@ namespace superagent {
      */
     //% blockId=superagent_report block="superagent report %text"
     //% group="Communicate"
-    export function report(text: string) {
-        runAtAgent("title @s actionbar " + text)
+    export function report(text: any) {
+        runAtAgent("title @s actionbar " + textValue(text))
     }
 
     /**
