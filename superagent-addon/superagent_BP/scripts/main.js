@@ -162,6 +162,7 @@ const ATTACK_DAMAGE = 14;
 const MAX_ATTACK_TARGETS = 12;
 const FOLLOW_RADIUS = 128;
 const TICK_RATE = 2;
+const MAINTENANCE_TICKS = 20;
 const PRESENCE_RADIUS = 1.35;
 const MOVE_SPEED = 0.45;
 const GUARD_SPEED = 0.6;
@@ -185,6 +186,18 @@ const ATTACK_PARTICLES = [
   "minecraft:critical_hit_emitter",
   "minecraft:basic_flame_particle"
 ];
+
+const DOG_SOUND_BANK = {
+  ready: ["mob.wolf.bark", "mob.wolf.whine"],
+  move: ["mob.wolf.step", "mob.wolf.bark"],
+  happy: ["mob.wolf.panting", "mob.wolf.whine", "mob.wolf.bark"],
+  alert: ["mob.wolf.bark", "mob.wolf.growl"],
+  combat: ["mob.wolf.growl", "mob.wolf.bark"],
+  support: ["mob.wolf.whine", "mob.wolf.panting"],
+  error: ["mob.wolf.whine"]
+};
+
+const LAST_STATUS_BY_ENTITY_ID = new Map();
 
 const HOSTILE_TYPES = [
   "minecraft:blaze",
@@ -261,6 +274,14 @@ function isAgent(entity) {
   return typeId === "minecraft:agent" || typeId === "agent" || typeId.endsWith(":agent");
 }
 
+function isAgentLike(entity) {
+  if (isAgent(entity)) {
+    return true;
+  }
+  const nameTag = (entity && entity.nameTag ? entity.nameTag : "").toLowerCase();
+  return nameTag.includes("agent") && !nameTag.includes("superagent");
+}
+
 function isOwnedByAnyone(entity) {
   try {
     return entity.getTags().some((tag) => tag.indexOf(OWNER_TAG_PREFIX) === 0);
@@ -320,7 +341,12 @@ function findPlayerAgent(player) {
     location: player.location,
     maxDistance: FOLLOW_RADIUS
   });
-  return closestEntity(nearby.filter(isAgent), player.location);
+  const nearbyAgent = closestEntity(nearby.filter(isAgentLike), player.location);
+  if (nearbyAgent) {
+    return nearbyAgent;
+  }
+  const allAgents = player.dimension.getEntities({}).filter(isAgentLike);
+  return closestEntity(allAgents, player.location);
 }
 
 function allNearbySuperagents(player) {
@@ -370,6 +396,45 @@ function addEffectSafe(entity, effect, duration, options) {
     entity.addEffect(effect, duration, options);
   } catch (error) {
   }
+}
+
+function playSoundSafe(dimension, soundId, location, options) {
+  if (!dimension || !soundId || !location) {
+    return false;
+  }
+  try {
+    if (typeof dimension.playSound === "function") {
+      dimension.playSound(soundId, location, options || {});
+      return true;
+    }
+  } catch (error) {
+  }
+  try {
+    if (typeof world.playSound === "function") {
+      world.playSound(soundId, location, options || {});
+      return true;
+    }
+  } catch (error) {
+  }
+  return false;
+}
+
+function playDogSound(entity, kind, options) {
+  if (!entity || !entity.dimension || !entity.location) {
+    return false;
+  }
+  const sounds = DOG_SOUND_BANK[kind] || DOG_SOUND_BANK.happy;
+  const location = {
+    x: entity.location.x,
+    y: entity.location.y,
+    z: entity.location.z
+  };
+  for (const soundId of sounds) {
+    if (playSoundSafe(entity.dimension, soundId, location, options)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function applyLabel(superagent) {
@@ -476,6 +541,7 @@ function transportSuperagentToEgg(spawned) {
     clearMovementState(owned);
     try {
       teleportEntityOpen(owned, target);
+      playDogSound(owned, "ready", { volume: 0.6, pitch: 1.1 });
     } catch (error) {
     }
     removeEntitySafe(spawned);
@@ -483,6 +549,7 @@ function transportSuperagentToEgg(spawned) {
   }
   configureSuperagent(spawned, player);
   clearMovementState(spawned);
+  playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
   const tag = ownerTag(player);
   for (const other of allNearbySuperagents(player)) {
     if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
@@ -616,6 +683,9 @@ function attackAround(superagent, tick) {
     }
   }
   emitAuraParticles(superagent.dimension, superagent.location, tick);
+  if (targets.length > 0) {
+    playDogSound(superagent, "combat", { volume: 0.7, pitch: 0.9 });
+  }
   return targets.length;
 }
 
@@ -640,6 +710,39 @@ function refreshAgentVisibleEffects(agentEntity) {
   addEffectSafe(agentEntity, "resistance", 80, {
     amplifier: 0,
     showParticles: false
+  });
+}
+
+function statusSoundKind(status) {
+  if (status === "moving") {
+    return "move";
+  }
+  if (status === "guard") {
+    return "combat";
+  }
+  return "happy";
+}
+
+function playStatusSoundIfChanged(superagent, status) {
+  if (!superagent) {
+    return;
+  }
+  let previous;
+  try {
+    previous = LAST_STATUS_BY_ENTITY_ID.get(superagent.id);
+  } catch (error) {
+    previous = undefined;
+  }
+  if (previous === status) {
+    return;
+  }
+  try {
+    LAST_STATUS_BY_ENTITY_ID.set(superagent.id, status);
+  } catch (error) {
+  }
+  playDogSound(superagent, statusSoundKind(status), {
+    volume: 0.55,
+    pitch: status === "guard" ? 0.95 : 1.15
   });
 }
 
@@ -668,7 +771,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.48 script active");
+      player.sendMessage("superagent 0.1.57 script active");
     }
   } catch (error) {
   }
@@ -719,6 +822,14 @@ function passableBlock(dimension, x, y, z) {
   }
 }
 
+function gridAnchorLocation(location) {
+  return {
+    x: Math.floor(location.x) + 0.5,
+    y: Math.floor(location.y),
+    z: Math.floor(location.z) + 0.5
+  };
+}
+
 function locationIsOpen(dimension, location) {
   const x = Math.floor(location.x);
   const y = Math.floor(location.y);
@@ -727,12 +838,13 @@ function locationIsOpen(dimension, location) {
 }
 
 function openLocationNear(dimension, location) {
-  if (locationIsOpen(dimension, location)) {
-    return location;
+  const anchored = gridAnchorLocation(location);
+  if (locationIsOpen(dimension, anchored)) {
+    return anchored;
   }
-  const baseX = Math.floor(location.x);
-  const baseY = Math.floor(location.y);
-  const baseZ = Math.floor(location.z);
+  const baseX = Math.floor(anchored.x);
+  const baseY = Math.floor(anchored.y);
+  const baseZ = Math.floor(anchored.z);
   for (let radius = 1; radius <= 4; radius++) {
     for (let dy = 0 - radius; dy <= radius; dy++) {
       for (let dx = 0 - radius; dx <= radius; dx++) {
@@ -755,6 +867,69 @@ function openLocationNear(dimension, location) {
   return undefined;
 }
 
+function normalizeYaw(yaw) {
+  let value = Number(yaw);
+  if (!Number.isFinite(value)) {
+    value = 0;
+  }
+  while (value > 180) {
+    value -= 360;
+  }
+  while (value <= -180) {
+    value += 360;
+  }
+  return value;
+}
+
+function snapYawToCardinal(yaw) {
+  return normalizeYaw(Math.round(normalizeYaw(yaw) / 90) * 90);
+}
+
+function cardinalRotationFromTo(from, to) {
+  if (!from || !to) {
+    return { x: 0, y: 0 };
+  }
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  if (Math.abs(dx) > Math.abs(dz)) {
+    return { x: 0, y: dx > 0 ? -90 : 90 };
+  }
+  if (Math.abs(dz) > 0) {
+    return { x: 0, y: dz > 0 ? 0 : 180 };
+  }
+  return { x: 0, y: 0 };
+}
+
+function gridAlignedTeleportOptions(entity, options) {
+  const nextOptions = {};
+  if (options && options.rotation) {
+    nextOptions.rotation = { x: 0, y: snapYawToCardinal(options.rotation.y) };
+  } else if (options && options.facingLocation && entity && entity.location) {
+    nextOptions.rotation = cardinalRotationFromTo(entity.location, options.facingLocation);
+  } else {
+    nextOptions.rotation = { x: 0, y: 0 };
+  }
+  return nextOptions;
+}
+
+function setGridAlignedRotation(entity, rotation) {
+  if (!entity) {
+    return false;
+  }
+  const aligned = { x: 0, y: snapYawToCardinal(rotation && rotation.y) };
+  try {
+    entity.setRotation(aligned);
+    return true;
+  } catch (error) {
+  }
+  try {
+    entity.teleport(entity.location, { rotation: aligned });
+    return true;
+  } catch (error) {
+  }
+  return false;
+}
+
 function teleportEntityOpen(entity, location, options) {
   if (!entity) {
     return false;
@@ -764,7 +939,7 @@ function teleportEntityOpen(entity, location, options) {
     return false;
   }
   try {
-    entity.teleport(target, options || {});
+    entity.teleport(target, gridAlignedTeleportOptions(entity, options));
     return true;
   } catch (error) {
     return false;
@@ -859,7 +1034,7 @@ function stepAlongPath(superagent) {
   }
   const waypoint = path[index];
   // Adaptive: if the next waypoint is now blocked (terrain changed), recompute.
-  if (blockIsObstacle(superagent.dimension, Math.round(waypoint.x), Math.round(waypoint.y), Math.round(waypoint.z))) {
+  if (blockIsObstacle(superagent.dimension, Math.floor(waypoint.x), Math.floor(waypoint.y), Math.floor(waypoint.z))) {
     const goal = readPathGoal(superagent);
     if (goal) {
       computeAndStorePath(superagent, goal);
@@ -876,7 +1051,9 @@ function stepAlongPath(superagent) {
     }
     return true;
   }
-  teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, { facingLocation: waypoint });
+  teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, {
+    rotation: cardinalRotationFromTo(superagent.location, waypoint)
+  });
   return true;
 }
 
@@ -908,14 +1085,16 @@ function navStep(player, superagent) {
     return;
   }
   // Collision: never glide into a solid block — stop at the wall instead.
-  if (blockIsObstacle(superagent.dimension, Math.round(next.x), Math.round(next.y), Math.round(next.z))) {
+  if (blockIsObstacle(superagent.dimension, Math.floor(next.x), Math.floor(next.y), Math.floor(next.z))) {
     if (!follow) {
       clearNavTarget(superagent);
     }
     return;
   }
   try {
-    teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, { facingLocation: target });
+    teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, {
+      rotation: cardinalRotationFromTo(superagent.location, target)
+    });
   } catch (error) {
   }
 }
@@ -980,9 +1159,16 @@ function spinIfActive(superagent, tick) {
     return;
   }
   if (typeof until !== "number" || tick > until) {
+    if (typeof until === "number") {
+      try {
+        superagent.setDynamicProperty(SPIN_PROP, undefined);
+      } catch (error) {
+      }
+      setGridAlignedRotation(superagent, { x: 0, y: 0 });
+    }
     return;
   }
-  const yaw = (tick * 100) % 360 - 180;
+  const yaw = (tick % 4) * 90 - 180;
   try {
     superagent.setRotation({ x: 0, y: yaw });
     return;
@@ -995,12 +1181,17 @@ function spinIfActive(superagent, tick) {
 }
 
 function tickSuperagent(player, superagent, tick) {
-  configureSuperagent(superagent, player);
-  keepAlive(superagent);
+  if (tick % MAINTENANCE_TICKS === 0) {
+    configureSuperagent(superagent, player);
+    keepAlive(superagent);
+  }
   navStep(player, superagent);
   spinIfActive(superagent, tick);
-  const status = currentStatus(superagent);
-  applyLabelWithStatus(superagent, status);
+  if (tick % MAINTENANCE_TICKS === 0) {
+    const status = currentStatus(superagent);
+    applyLabelWithStatus(superagent, status);
+    playStatusSoundIfChanged(superagent, status);
+  }
   // No idle particles: the character is shown by its model + name tag only.
   if (combatEnabled()) {
     attackAround(superagent, tick);
@@ -1021,6 +1212,7 @@ function spawnGuard(player) {
   }
   guard.addTag(GUARD_TAG);
   configureSuperagent(guard, player);
+  playDogSound(guard, "ready", { volume: 0.6, pitch: 1.1 });
   return guard;
 }
 
@@ -1039,10 +1231,12 @@ function guardStep(player, guard, index, tick) {
     z: player.location.z + Math.sin(angle) * 2.5
   };
   const next = stepToward(guard.location, target, GUARD_SPEED);
-  const guardBlocked = blockIsObstacle(guard.dimension, Math.round(next.x), Math.round(next.y), Math.round(next.z));
+  const guardBlocked = blockIsObstacle(guard.dimension, Math.floor(next.x), Math.floor(next.y), Math.floor(next.z));
   if (!next.arrived && !isFrozen() && !guardBlocked) {
     try {
-      teleportEntityOpen(guard, { x: next.x, y: next.y, z: next.z }, { facingLocation: target });
+      teleportEntityOpen(guard, { x: next.x, y: next.y, z: next.z }, {
+        rotation: cardinalRotationFromTo(guard.location, target)
+      });
     } catch (error) {
     }
   }
@@ -1055,9 +1249,11 @@ function tickGuards(player, tick) {
   const guards = findGuards(player);
   for (let i = 0; i < guards.length; i++) {
     const guard = guards[i];
-    guard.addTag(GUARD_TAG);
-    configureSuperagent(guard, player);
-    keepAlive(guard);
+    if (tick % MAINTENANCE_TICKS === 0) {
+      guard.addTag(GUARD_TAG);
+      configureSuperagent(guard, player);
+      keepAlive(guard);
+    }
     guardStep(player, guard, i, tick);
   }
 }
@@ -1086,6 +1282,7 @@ function applyLabelFromEvent(player, message) {
     const text = (message || "").trim();
     owned.setDynamicProperty(LABEL_PROPERTY, text.length > 0 ? text.slice(0, 48) : undefined);
     applyLabel(owned);
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.2 });
   } catch (error) {
   }
 }
@@ -1098,6 +1295,7 @@ function applyWorldPositionLabel(player) {
   try {
     owned.setDynamicProperty(LABEL_PROPERTY, formatLocationText(owned.location).slice(0, 48));
     applyLabel(owned);
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.25 });
   } catch (error) {
   }
 }
@@ -1109,9 +1307,11 @@ function reportWorldPosition(player) {
   }
   try {
     player.onScreenDisplay.setActionBar(formatLocationText(owned.location));
+    playDogSound(owned, "happy", { volume: 0.3, pitch: 1.25 });
   } catch (error) {
     try {
       player.sendMessage(formatLocationText(owned.location));
+      playDogSound(owned, "happy", { volume: 0.3, pitch: 1.25 });
     } catch (sendError) {
     }
   }
@@ -1139,6 +1339,7 @@ function handleGoto(player, message) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearPath(owned);
   setNavTarget(owned, target);
+  playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
 }
 
 function stepDirOffset(dir) {
@@ -1186,6 +1387,7 @@ function handleStep(player, message) {
     teleportEntityOpen(owned, { x: cx + 0.5, y: cy, z: cz + 0.5 });
   } catch (error) {
   }
+  playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
 }
 
 // Turn the character to face a cardinal direction.
@@ -1200,16 +1402,8 @@ function handleFace(player, message) {
   else if (dir === "south") rot.y = 0;
   else if (dir === "east") rot.y = -90;
   else if (dir === "west") rot.y = 90;
-  else if (dir === "up") rot.x = -90;
-  else if (dir === "down") rot.x = 90;
-  try {
-    owned.setRotation(rot);
-  } catch (error) {
-    try {
-      owned.teleport(owned.location, { rotation: rot });
-    } catch (error2) {
-    }
-  }
+  setGridAlignedRotation(owned, rot);
+  playDogSound(owned, "happy", { volume: 0.25, pitch: 1.25 });
 }
 
 // ---- Phase 13 special powers ----------------------------------------------
@@ -1240,6 +1434,7 @@ function handleLightning(player) {
   }
   try {
     dimension.spawnEntity("minecraft:lightning_bolt", target.location);
+    playDogSound(anchor, "alert", { volume: 0.6, pitch: 0.85 });
   } catch (error) {
   }
 }
@@ -1265,6 +1460,7 @@ function handleBlast(player, message) {
       }
     }
   }
+  playDogSound(anchor, "combat", { volume: 0.65, pitch: 0.9 });
 }
 
 // Give the player a protective shield.
@@ -1272,6 +1468,7 @@ function handleShield(player, message) {
   const seconds = parseNumberArg(message, 15, 1, 120);
   addEffectSafe(player, "resistance", seconds * 20, { amplifier: 2, showParticles: false });
   addEffectSafe(player, "absorption", seconds * 20, { amplifier: 1, showParticles: false });
+  playDogSound(player, "support", { volume: 0.35, pitch: 1.2 });
 }
 
 // Heal the player to full and grant regeneration.
@@ -1284,6 +1481,7 @@ function handleHeal(player) {
     }
   } catch (error) {
   }
+  playDogSound(player, "support", { volume: 0.35, pitch: 1.25 });
 }
 
 // Pull nearby dropped items to the player.
@@ -1295,6 +1493,7 @@ function handleMagnet(player, message) {
     } catch (error) {
     }
   }
+  playDogSound(player, "happy", { volume: 0.35, pitch: 1.2 });
 }
 
 // Blink the player to the character (escape / travel).
@@ -1305,6 +1504,7 @@ function handleBlink(player) {
   }
   try {
     player.teleport(owned.location);
+    playDogSound(owned, "move", { volume: 0.45, pitch: 1.15 });
   } catch (error) {
   }
 }
@@ -1322,23 +1522,13 @@ function handleAlly(player, message) {
     golem.addTag("superagent.ally");
   } catch (error) {
   }
+  playDogSound(player, "support", { volume: 0.4, pitch: 1.15 });
   system.runTimeout(() => {
     try {
       golem.remove();
     } catch (error) {
     }
   }, seconds * 20);
-}
-
-function handleGotoAgent(player) {
-  const owned = ownedSuperagentForEvent(player);
-  const agentEntity = findPlayerAgent(player);
-  if (!owned || !agentEntity) {
-    return;
-  }
-  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
-  clearPath(owned);
-  setNavTarget(owned, agentEntity.location);
 }
 
 // Pathfinding: route around obstacles instead of gliding straight.
@@ -1349,15 +1539,7 @@ function handlePathTo(player, message) {
     return;
   }
   computeAndStorePath(owned, goal);
-}
-
-function handlePathToAgent(player) {
-  const owned = ownedSuperagentForEvent(player);
-  const agentEntity = findPlayerAgent(player);
-  if (!owned || !agentEntity) {
-    return;
-  }
-  computeAndStorePath(owned, agentEntity.location);
+  playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
 }
 
 function handleFollowWalk(player, message) {
@@ -1371,6 +1553,9 @@ function handleFollowWalk(player, message) {
   clearPath(owned);
   if (!on) {
     clearNavTarget(owned);
+    playDogSound(owned, "happy", { volume: 0.3, pitch: 1.25 });
+  } else {
+    playDogSound(owned, "move", { volume: 0.4, pitch: 1.1 });
   }
 }
 
@@ -1382,35 +1567,41 @@ function handleStop(player) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearNavTarget(owned);
   clearPath(owned);
+  playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
 }
 
 // Home is stored on the player, which persists across world reloads.
-function handleSetHome(player) {
+function handleSetHome(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
     return;
   }
+  const messagePosition = parseGoto(message);
+  const source = messagePosition || owned.location;
   try {
-    player.setDynamicProperty(HOME_X_PROP, owned.location.x);
-    player.setDynamicProperty(HOME_Y_PROP, owned.location.y);
-    player.setDynamicProperty(HOME_Z_PROP, owned.location.z);
+    player.setDynamicProperty(HOME_X_PROP, source.x);
+    player.setDynamicProperty(HOME_Y_PROP, source.y);
+    player.setDynamicProperty(HOME_Z_PROP, source.z);
+    playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
   } catch (error) {
   }
 }
 
-function handleGoHome(player) {
+function handleGoHome(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
     return;
   }
-  const x = player.getDynamicProperty(HOME_X_PROP);
-  const y = player.getDynamicProperty(HOME_Y_PROP);
-  const z = player.getDynamicProperty(HOME_Z_PROP);
+  const messagePosition = parseGoto(message);
+  const x = messagePosition ? messagePosition.x : player.getDynamicProperty(HOME_X_PROP);
+  const y = messagePosition ? messagePosition.y : player.getDynamicProperty(HOME_Y_PROP);
+  const z = messagePosition ? messagePosition.z : player.getDynamicProperty(HOME_Z_PROP);
   if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") {
     return;
   }
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   setNavTarget(owned, { x, y, z });
+  playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
 }
 
 function handleClearHome(player) {
@@ -1418,6 +1609,10 @@ function handleClearHome(player) {
     player.setDynamicProperty(HOME_X_PROP, undefined);
     player.setDynamicProperty(HOME_Y_PROP, undefined);
     player.setDynamicProperty(HOME_Z_PROP, undefined);
+    const owned = ownedSuperagentForEvent(player);
+    if (owned) {
+      playDogSound(owned, "happy", { volume: 0.25, pitch: 1.25 });
+    }
   } catch (error) {
   }
 }
@@ -1443,6 +1638,10 @@ function handleGather(player) {
     } catch (error) {
     }
   }
+  const owned = ownedSuperagentForEvent(player);
+  if (owned) {
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.2 });
+  }
 }
 
 // Teacher: dismiss this player's guards and clear their main character state.
@@ -1456,6 +1655,7 @@ function handleReset(player) {
     } catch (error) {
     }
     applyLabel(owned);
+    playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
   }
   handleClearHome(player);
 }
@@ -1469,6 +1669,7 @@ function handleRecall(player) {
   clearMovementState(owned);
   try {
     teleportEntityOpen(owned, { x: player.location.x, y: player.location.y, z: player.location.z });
+    playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
   } catch (error) {
   }
 }
@@ -1519,21 +1720,9 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     }
     return;
   }
-  if (event.id === "superagent:gotoagent") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleGotoAgent(event.sourceEntity);
-    }
-    return;
-  }
   if (event.id === "superagent:pathto") {
     if (isPlayerSource(event.sourceEntity)) {
       handlePathTo(event.sourceEntity, event.message);
-    }
-    return;
-  }
-  if (event.id === "superagent:pathtoagent") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handlePathToAgent(event.sourceEntity);
     }
     return;
   }
@@ -1551,7 +1740,7 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   }
   if (event.id === "superagent:sethome") {
     if (isPlayerSource(event.sourceEntity)) {
-      handleSetHome(event.sourceEntity);
+      handleSetHome(event.sourceEntity, event.message);
     }
     return;
   }

@@ -40,6 +40,21 @@ enum SuperagentMoveDirection {
     Down = 5
 }
 
+enum SuperagentStairDirection {
+    //% block="north"
+    North = 0,
+    //% block="east"
+    East = 1,
+    //% block="south"
+    South = 2,
+    //% block="west"
+    West = 3,
+    //% block="up"
+    Up = 4,
+    //% block="down"
+    Down = 5
+}
+
 enum SuperagentSmartMoveMode {
     //% block="guard"
     Guard = 0,
@@ -144,6 +159,8 @@ namespace superagent {
     let followLoopStarted = false
     let followingAgent = false
     let superagentPosition = pos(0, 0, 0)
+    let homePosition = pos(0, 0, 0)
+    let homePositionSet = false
     let trackedX = 0
     let trackedY = 0
     let trackedZ = 0
@@ -154,6 +171,7 @@ namespace superagent {
     let watcherDirs: number[] = []
     let watcherLast: boolean[] = []
     let watcherHandlers: (() => void)[] = []
+    const WATCHER_POLL_MS = 500
     let copyX1 = 0
     let copyY1 = 0
     let copyZ1 = 0
@@ -184,6 +202,11 @@ namespace superagent {
 
     function runAtSuperagent(command: string): boolean {
         return mobs.execute(mobs.target(LOCAL_PLAYER), superagentPosition, command)
+    }
+
+    function runBuildAtSuperagent(command: string): boolean {
+        ensureCharacter()
+        return runAtSuperagent(command)
     }
 
     function textValue(value: any): string {
@@ -643,11 +666,11 @@ namespace superagent {
      * Attack hostile mobs around the visible superagent character.
      */
     //% blockId=superagent_attack_from_character block="superagent attack from character radius %radius strength %strength"
-    //% radius.min=1 radius.max=16 strength.min=1 strength.max=8
+    //% radius.min=1 radius.max=5 strength.min=1 strength.max=3
     //% group="Combat"
     export function attackFromCharacter(radius: number, strength: number) {
-        radius = clamp(radius, 1, 16)
-        strength = clamp(strength, 1, 8)
+        radius = clamp(radius, 1, 5)
+        strength = clamp(strength, 1, 3)
         ensureCharacter()
         runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
         runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
@@ -924,6 +947,45 @@ namespace superagent {
         return runAtSuperagent("testforblock " + axisOffset(direction, distance) + " " + id)
     }
 
+    function relativeCoord(value: number): string {
+        if (value == 0) {
+            return "~"
+        }
+        return "~" + value
+    }
+
+    function nearbyBlockIs(direction: SuperagentSense, block: SuperagentBlock): boolean {
+        return runAtSuperagent("testforblock " + senseOffset(direction) + " " + blockId(block))
+    }
+
+    function inspectKnownBlock(direction: SuperagentSense): number {
+        if (nearbyBlockIs(direction, SuperagentBlock.Stone)) {
+            return SuperagentBlock.Stone
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.Cobblestone)) {
+            return SuperagentBlock.Cobblestone
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.Dirt)) {
+            return SuperagentBlock.Dirt
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.OakPlanks)) {
+            return SuperagentBlock.OakPlanks
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.Glass)) {
+            return SuperagentBlock.Glass
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.Glowstone)) {
+            return SuperagentBlock.Glowstone
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.Sandstone)) {
+            return SuperagentBlock.Sandstone
+        }
+        if (nearbyBlockIs(direction, SuperagentBlock.Air)) {
+            return SuperagentBlock.Air
+        }
+        return -1
+    }
+
     /**
      * Distance to the nearest matching block along the 6 axes, or -1 if none.
      */
@@ -968,11 +1030,11 @@ namespace superagent {
      * Attack only when a hostile is sensed. Returns true if the character acted.
      */
     //% blockId=superagent_defend_if_threatened block="superagent defend if hostiles within %radius strength %strength"
-    //% radius.min=1 radius.max=16 strength.min=1 strength.max=8
+    //% radius.min=1 radius.max=5 strength.min=1 strength.max=3
     //% group="Reactive"
     export function defendIfThreatened(radius: number, strength: number): boolean {
-        radius = clamp(radius, 1, 16)
-        strength = clamp(strength, 1, 8)
+        radius = clamp(radius, 1, 5)
+        strength = clamp(strength, 1, 3)
         if (senseHostiles(radius)) {
             attackFromCharacter(radius, strength)
             return true
@@ -1012,6 +1074,9 @@ namespace superagent {
     }
 
     function pollWatchers() {
+        if (watcherKinds.length == 0) {
+            return
+        }
         for (let i = 0; i < watcherKinds.length; i++) {
             let current = evaluateWatcher(i)
             if (current && !watcherLast[i]) {
@@ -1027,10 +1092,10 @@ namespace superagent {
         }
         watchLoopStarted = true
         loops.forever(function () {
-            if (watching) {
+            if (watching && watcherKinds.length > 0) {
                 pollWatchers()
             }
-            loops.pause(250)
+            loops.pause(WATCHER_POLL_MS)
         })
     }
 
@@ -1067,8 +1132,6 @@ namespace superagent {
     /**
      * Run code once each time the path in that direction becomes blocked.
      */
-    //% blockId=superagent_on_path_blocked block="on superagent path blocked %direction"
-    //% group="Events"
     export function onPathBlocked(direction: SuperagentSense, handler: () => void) {
         registerWatcher(2, 0, direction, handler)
     }
@@ -1076,8 +1139,6 @@ namespace superagent {
     /**
      * Start the background event watcher loop.
      */
-    //% blockId=superagent_watch_on block="superagent watch on"
-    //% group="Events"
     export function watchOn() {
         watching = true
         ensureWatchLoop()
@@ -1086,8 +1147,6 @@ namespace superagent {
     /**
      * Pause the background event watcher loop without losing registered events.
      */
-    //% blockId=superagent_watch_off block="superagent watch off"
-    //% group="Events"
     export function watchOff() {
         watching = false
     }
@@ -1095,8 +1154,6 @@ namespace superagent {
     /**
      * Check all registered events once right now (useful inside your own loop).
      */
-    //% blockId=superagent_check_events block="superagent check events"
-    //% group="Events"
     export function checkEvents() {
         pollWatchers()
     }
@@ -1104,8 +1161,6 @@ namespace superagent {
     /**
      * Smoothly walk (glide) the character to a world position.
      */
-    //% blockId=superagent_walk_to block="superagent walk to x %x y %y z %z"
-    //% group="Navigation"
     export function walkTo(x: number, y: number, z: number) {
         followingAgent = false
         ensureCharacter()
@@ -1115,21 +1170,8 @@ namespace superagent {
     }
 
     /**
-     * Smoothly walk the character to the Agent's current position once.
-     */
-    //% blockId=superagent_walk_to_agent block="superagent walk to agent"
-    //% group="Navigation"
-    export function walkToAgent() {
-        followingAgent = false
-        ensureCharacter()
-        runAtAgent("scriptevent superagent:gotoagent")
-    }
-
-    /**
      * Keep the character smoothly walking after the Agent.
      */
-    //% blockId=superagent_follow_walk block="superagent follow walk %on"
-    //% group="Navigation"
     export function followWalk(on: boolean) {
         followingAgent = false
         ensureCharacter()
@@ -1155,25 +1197,12 @@ namespace superagent {
     /**
      * Pathfind (A*) the character to a world position, routing around obstacles.
      */
-    //% blockId=superagent_path_to block="superagent path to x %x y %y z %z"
-    //% group="Navigation"
     export function pathTo(x: number, y: number, z: number) {
         followingAgent = false
         ensureCharacter()
         superagentPosition = pos(x, y, z)
         setTrackedPosition(x, y, z)
         runAtAgent("scriptevent superagent:pathto " + x + " " + y + " " + z)
-    }
-
-    /**
-     * Pathfind (A*) the character to the Agent, routing around obstacles.
-     */
-    //% blockId=superagent_path_to_agent block="superagent path to agent"
-    //% group="Navigation"
-    export function pathToAgent() {
-        followingAgent = false
-        ensureCharacter()
-        runAtAgent("scriptevent superagent:pathtoagent")
     }
 
     function blockId(block: SuperagentBlock): string {
@@ -1204,8 +1233,6 @@ namespace superagent {
     /**
      * Value block: use a direction as a plug-in input for other superagent blocks.
      */
-    //% blockId=superagent_value_move_direction block="superagent direction %direction"
-    //% group="Values"
     export function moveDirectionValue(direction: SuperagentMoveDirection): SuperagentMoveDirection {
         return direction
     }
@@ -1213,8 +1240,6 @@ namespace superagent {
     /**
      * Value block: use a sensing direction as a plug-in input for sensing/event blocks.
      */
-    //% blockId=superagent_value_sense_direction block="superagent sense direction %direction"
-    //% group="Values"
     export function senseDirectionValue(direction: SuperagentSense): SuperagentSense {
         return direction
     }
@@ -1231,8 +1256,6 @@ namespace superagent {
     /**
      * Value block: use a block type as a plug-in input for build and block-sensing blocks.
      */
-    //% blockId=superagent_value_block block="superagent block %block"
-    //% group="Values"
     export function blockValue(block: SuperagentBlock): SuperagentBlock {
         return block
     }
@@ -1240,8 +1263,6 @@ namespace superagent {
     /**
      * Value block: use a blueprint transform as a plug-in input for transformed layer builds.
      */
-    //% blockId=superagent_value_transform block="superagent transform %transform"
-    //% group="Values"
     export function transformValue(transform: SuperagentTransform): SuperagentTransform {
         return transform
     }
@@ -1338,7 +1359,7 @@ namespace superagent {
     }
 
     /**
-     * Fill a solid box of blocks starting at the character corner.
+     * Fill a solid box of blocks starting at the superagent position.
      */
     //% blockId=superagent_build_box block="superagent build box %block width %width height %height depth %depth"
     //% width.min=1 width.max=16 height.min=1 height.max=16 depth.min=1 depth.max=16
@@ -1347,12 +1368,11 @@ namespace superagent {
         width = clamp(width, 1, 16)
         height = clamp(height, 1, 16)
         depth = clamp(depth, 1, 16)
-        ensureCharacter()
-        runAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(block))
+        runBuildAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(block))
     }
 
     /**
-     * Build a box with only the outer walls, hollow inside.
+     * Build a box with only the outer walls, hollow inside, starting at the superagent position.
      */
     //% blockId=superagent_build_hollow_box block="superagent build hollow box %block width %width height %height depth %depth"
     //% width.min=1 width.max=16 height.min=1 height.max=16 depth.min=1 depth.max=16
@@ -1361,12 +1381,11 @@ namespace superagent {
         width = clamp(width, 1, 16)
         height = clamp(height, 1, 16)
         depth = clamp(depth, 1, 16)
-        ensureCharacter()
-        runAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(block) + " hollow")
+        runBuildAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(block) + " hollow")
     }
 
     /**
-     * Build a flat floor of blocks starting at the character corner.
+     * Build a flat floor of blocks starting at the superagent position.
      */
     //% blockId=superagent_build_floor block="superagent build floor %block width %width depth %depth"
     //% width.min=1 width.max=16 depth.min=1 depth.max=16
@@ -1374,12 +1393,11 @@ namespace superagent {
     export function buildFloor(block: SuperagentBlock, width: number, depth: number) {
         width = clamp(width, 1, 16)
         depth = clamp(depth, 1, 16)
-        ensureCharacter()
-        runAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~ ~" + (depth - 1) + " " + blockId(block))
+        runBuildAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~ ~" + (depth - 1) + " " + blockId(block))
     }
 
     /**
-     * Build a wall going east and up from the character.
+     * Build a wall going east and up from the superagent position.
      */
     //% blockId=superagent_build_wall block="superagent build wall %block length %length height %height"
     //% length.min=1 length.max=16 height.min=1 height.max=16
@@ -1387,20 +1405,18 @@ namespace superagent {
     export function buildWall(block: SuperagentBlock, length: number, height: number) {
         length = clamp(length, 1, 16)
         height = clamp(height, 1, 16)
-        ensureCharacter()
-        runAtSuperagent("fill ~ ~ ~ ~" + (length - 1) + " ~" + (height - 1) + " ~ " + blockId(block))
+        runBuildAtSuperagent("fill ~ ~ ~ ~" + (length - 1) + " ~" + (height - 1) + " ~ " + blockId(block))
     }
 
     /**
-     * Build a single column of blocks upward from the character.
+     * Build a single column of blocks upward from the superagent position.
      */
     //% blockId=superagent_build_pillar block="superagent build pillar %block height %height"
     //% height.min=1 height.max=32
     //% group="Build"
     export function buildPillar(block: SuperagentBlock, height: number) {
         height = clamp(height, 1, 32)
-        ensureCharacter()
-        runAtSuperagent("fill ~ ~ ~ ~ ~" + (height - 1) + " ~ " + blockId(block))
+        runBuildAtSuperagent("fill ~ ~ ~ ~ ~" + (height - 1) + " ~ " + blockId(block))
     }
 
     /**
@@ -1410,13 +1426,12 @@ namespace superagent {
     //% blockId=superagent_build_pattern block="superagent build row %block pattern %pattern"
     //% group="Build"
     export function buildRowPattern(block: SuperagentBlock, pattern: any): number {
-        ensureCharacter()
         let row = textValue(pattern)
         let placed = 0
         for (let i = 0; i < row.length; i++) {
             let cell = row.charAt(i)
             if (cell == "X" || cell == "x" || cell == "#" || cell == "1") {
-                runAtSuperagent("setblock ~" + i + " ~ ~ " + blockId(block))
+                runBuildAtSuperagent("setblock ~" + i + " ~ ~ " + blockId(block))
                 placed++
             }
         }
@@ -1424,7 +1439,7 @@ namespace superagent {
     }
 
     /**
-     * Clear a box of space to air starting at the character corner.
+     * Clear a box of space to air starting at the superagent position.
      */
     //% blockId=superagent_clear_area block="superagent clear area width %width height %height depth %depth"
     //% width.min=1 width.max=16 height.min=1 height.max=16 depth.min=1 depth.max=16
@@ -1441,30 +1456,40 @@ namespace superagent {
     //% group="Build"
     export function buildPyramid(block: SuperagentBlock, size: number) {
         size = clamp(size, 1, 16)
-        ensureCharacter()
         let id = blockId(block)
         for (let y = 0; y < size; y++) {
-            runAtSuperagent("fill ~" + y + " ~" + y + " ~" + y + " ~" + (size - 1 - y) + " ~" + y + " ~" + (size - 1 - y) + " " + id)
+            runBuildAtSuperagent("fill ~" + y + " ~" + y + " ~" + y + " ~" + (size - 1 - y) + " ~" + y + " ~" + (size - 1 - y) + " " + id)
         }
     }
 
     /**
-     * Build a diagonal staircase going up and east.
+     * Build a diagonal staircase going up in a chosen direction from the superagent position.
      */
-    //% blockId=superagent_build_staircase block="superagent build staircase %block steps %steps"
+    //% blockId=superagent_build_staircase block="superagent build staircase %block direction %direction steps %steps"
     //% steps.min=1 steps.max=32
     //% group="Build"
-    export function buildStaircase(block: SuperagentBlock, steps: number) {
+    export function buildStaircase(block: SuperagentBlock, direction: SuperagentStairDirection, steps: number) {
         steps = clamp(steps, 1, 32)
-        ensureCharacter()
         let id = blockId(block)
         for (let i = 0; i < steps; i++) {
-            runAtSuperagent("setblock ~" + i + " ~" + i + " ~ " + id)
+            if (direction == SuperagentStairDirection.Up) {
+                runBuildAtSuperagent("setblock ~ ~" + i + " ~ " + id)
+            } else if (direction == SuperagentStairDirection.Down) {
+                runBuildAtSuperagent("setblock ~ ~" + (0 - i) + " ~ " + id)
+            } else if (direction == SuperagentStairDirection.East) {
+                runBuildAtSuperagent("setblock ~" + i + " ~" + i + " ~ " + id)
+            } else if (direction == SuperagentStairDirection.South) {
+                runBuildAtSuperagent("setblock ~ ~" + i + " ~" + i + " " + id)
+            } else if (direction == SuperagentStairDirection.West) {
+                runBuildAtSuperagent("setblock ~" + (0 - i) + " ~" + i + " ~ " + id)
+            } else {
+                runBuildAtSuperagent("setblock ~ ~" + i + " ~" + (0 - i) + " " + id)
+            }
         }
     }
 
     function plotBlock(dx: number, dz: number, id: string) {
-        runAtSuperagent("setblock ~" + dx + " ~ ~" + dz + " " + id)
+        runBuildAtSuperagent("setblock ~" + dx + " ~ ~" + dz + " " + id)
     }
 
     /**
@@ -1475,7 +1500,6 @@ namespace superagent {
     //% group="Build"
     export function buildCircle(block: SuperagentBlock, radius: number) {
         radius = clamp(radius, 1, 16)
-        ensureCharacter()
         let id = blockId(block)
         let x = radius
         let z = 0
@@ -1507,11 +1531,10 @@ namespace superagent {
     //% group="Build"
     export function buildDisc(block: SuperagentBlock, radius: number) {
         radius = clamp(radius, 1, 16)
-        ensureCharacter()
         let id = blockId(block)
         for (let x = 0 - radius; x <= radius; x++) {
             let zmax = Math.floor(Math.sqrt(radius * radius - x * x))
-            runAtSuperagent("fill ~" + x + " ~ ~-" + zmax + " ~" + x + " ~ ~" + zmax + " " + id)
+            runBuildAtSuperagent("fill ~" + x + " ~ ~-" + zmax + " ~" + x + " ~ ~" + zmax + " " + id)
         }
     }
 
@@ -1523,6 +1546,7 @@ namespace superagent {
     //% group="Mine"
     export function mineForward(length: number) {
         length = clamp(length, 1, 64)
+        agent.teleportToPlayer()
         for (let i = 0; i < length; i++) {
             agent.destroy(FORWARD)
             agent.destroy(UP)
@@ -1539,6 +1563,7 @@ namespace superagent {
     //% group="Mine"
     export function mineDown(depth: number) {
         depth = clamp(depth, 1, 64)
+        agent.teleportToPlayer()
         for (let i = 0; i < depth; i++) {
             agent.destroy(DOWN)
             agent.move(DOWN, 1)
@@ -1579,8 +1604,6 @@ namespace superagent {
     /**
      * Store a number under a key that survives world reloads (per player).
      */
-    //% blockId=superagent_remember block="superagent remember %key = %value"
-    //% group="Memory"
     export function remember(key: any, value: number) {
         let objective = memoryObjective(key)
         runAtAgent("scoreboard objectives add " + objective + " dummy")
@@ -1590,8 +1613,6 @@ namespace superagent {
     /**
      * Forget a stored key for this player.
      */
-    //% blockId=superagent_forget block="superagent forget %key"
-    //% group="Memory"
     export function forget(key: any) {
         runAtAgent("scoreboard players reset @s " + memoryObjective(key))
     }
@@ -1599,8 +1620,6 @@ namespace superagent {
     /**
      * True when a stored memory equals a value.
      */
-    //% blockId=superagent_memory_equals block="superagent memory %key = %value"
-    //% group="Memory"
     export function memoryEquals(key: any, value: number): boolean {
         return runAtAgent("scoreboard players test @s " + memoryObjective(key) + " " + value + " " + value)
     }
@@ -1608,8 +1627,6 @@ namespace superagent {
     /**
      * True when a stored memory is at least a value.
      */
-    //% blockId=superagent_memory_at_least block="superagent memory %key >= %value"
-    //% group="Memory"
     export function memoryAtLeast(key: any, value: number): boolean {
         return runAtAgent("scoreboard players test @s " + memoryObjective(key) + " " + value + " 2147483647")
     }
@@ -1617,9 +1634,6 @@ namespace superagent {
     /**
      * Read a stored memory by scanning 0..max. Returns the value or -1 if not found.
      */
-    //% blockId=superagent_memory_value block="superagent memory %key value up to %max"
-    //% max.min=1 max.max=1024
-    //% group="Memory"
     export function memoryValue(key: any, max: number): number {
         max = clamp(max, 1, 1024)
         for (let v = 0; v <= max; v++) {
@@ -1637,7 +1651,9 @@ namespace superagent {
     //% group="Memory"
     export function setHome() {
         ensureCharacter()
-        runAtAgent("scriptevent superagent:sethome")
+        homePosition = pos(superagentPosition.x, superagentPosition.y, superagentPosition.z)
+        homePositionSet = true
+        runAtAgent("scriptevent superagent:sethome " + homePosition.x + " " + homePosition.y + " " + homePosition.z)
     }
 
     /**
@@ -1648,6 +1664,12 @@ namespace superagent {
     export function goHome() {
         followingAgent = false
         ensureCharacter()
+        if (homePositionSet) {
+            superagentPosition = pos(homePosition.x, homePosition.y, homePosition.z)
+            setTrackedPosition(homePosition.x, homePosition.y, homePosition.z)
+            runAtAgent("scriptevent superagent:gohome " + homePosition.x + " " + homePosition.y + " " + homePosition.z)
+            return
+        }
         runAtAgent("scriptevent superagent:gohome")
     }
 
@@ -1657,6 +1679,7 @@ namespace superagent {
     //% blockId=superagent_clear_home block="superagent clear home"
     //% group="Memory"
     export function clearHome() {
+        homePositionSet = false
         runAtAgent("scriptevent superagent:clearhome")
     }
 
@@ -1723,9 +1746,6 @@ namespace superagent {
     /**
      * Agent command mirror: move the Minecraft Agent in a direction.
      */
-    //% blockId=superagent_agent_move block="superagent agent move %direction steps %steps"
-    //% steps.min=1 steps.max=64
-    //% group="Agent Work"
     export function agentMove(direction: SuperagentSense, steps: number) {
         agent.move(senseDirection(direction), clamp(steps, 1, 64))
     }
@@ -1733,8 +1753,6 @@ namespace superagent {
     /**
      * Agent command mirror: turn the Minecraft Agent left or right.
      */
-    //% blockId=superagent_agent_turn block="superagent agent turn %turn"
-    //% group="Agent Work"
     export function agentTurn(turn: SuperagentTurn) {
         agent.turn(turn == SuperagentTurn.Left ? TurnDirection.Left : TurnDirection.Right)
     }
@@ -1742,8 +1760,6 @@ namespace superagent {
     /**
      * Agent command mirror: enable or disable an Agent assist.
      */
-    //% blockId=superagent_agent_set_assist block="superagent agent assist %assist %on"
-    //% group="Agent Work"
     export function agentSetAssist(assist: SuperagentAssist, on: boolean) {
         agent.setAssist(assistKind(assist), on)
     }
@@ -1751,8 +1767,6 @@ namespace superagent {
     /**
      * Agent command mirror: teleport the Minecraft Agent to the player.
      */
-    //% blockId=superagent_agent_teleport_to_player block="superagent agent teleport to player"
-    //% group="Agent Work"
     export function agentTeleportToPlayer() {
         agent.teleportToPlayer()
     }
@@ -1760,8 +1774,6 @@ namespace superagent {
     /**
      * Agent command mirror: place from the active Agent slot.
      */
-    //% blockId=superagent_agent_place block="superagent agent place %direction"
-    //% group="Agent Work"
     export function agentPlace(direction: SuperagentSense) {
         agent.place(senseDirection(direction))
     }
@@ -1769,8 +1781,6 @@ namespace superagent {
     /**
      * Agent command mirror: destroy one block.
      */
-    //% blockId=superagent_agent_destroy block="superagent agent destroy %direction"
-    //% group="Agent Work"
     export function agentDestroy(direction: SuperagentSense) {
         agent.destroy(senseDirection(direction))
     }
@@ -1778,8 +1788,6 @@ namespace superagent {
     /**
      * Agent command mirror: till farmland.
      */
-    //% blockId=superagent_agent_till block="superagent agent till %direction"
-    //% group="Agent Work"
     export function agentTill(direction: SuperagentSense) {
         agent.till(senseDirection(direction))
     }
@@ -1787,8 +1795,6 @@ namespace superagent {
     /**
      * Agent command mirror: attack once.
      */
-    //% blockId=superagent_agent_attack block="superagent agent attack %direction"
-    //% group="Agent Work"
     export function agentAttack(direction: SuperagentSense) {
         agent.attack(senseDirection(direction))
     }
@@ -1796,8 +1802,6 @@ namespace superagent {
     /**
      * Agent command mirror: interact with a block or entity.
      */
-    //% blockId=superagent_agent_interact block="superagent agent interact %direction"
-    //% group="Agent Work"
     export function agentInteract(direction: SuperagentSense) {
         agent.interact(senseDirection(direction))
     }
@@ -1805,45 +1809,36 @@ namespace superagent {
     /**
      * Agent command mirror: select the active Agent inventory slot.
      */
-    //% blockId=superagent_agent_set_slot block="superagent agent set slot %slot"
-    //% slot.min=1 slot.max=27
-    //% group="Agent Work"
     export function agentSetSlot(slot: number) {
         agent.setSlot(clamp(slot, 1, 27))
     }
 
     /**
-     * Agent command mirror: detect whether a block is present.
+     * Detect whether a block is present next to the superagent character.
      */
-    //% blockId=superagent_agent_detect_block block="superagent agent detect block %direction"
-    //% group="Agent Work"
     export function agentDetectBlock(direction: SuperagentSense): boolean {
-        return agent.detect(AgentDetection.Block, senseDirection(direction))
+        ensureCharacter()
+        return !nearbyBlockIs(direction, SuperagentBlock.Air)
     }
 
     /**
      * Agent command mirror: detect whether redstone is present.
      */
-    //% blockId=superagent_agent_detect_redstone block="superagent agent detect redstone %direction"
-    //% group="Agent Work"
     export function agentDetectRedstone(direction: SuperagentSense): boolean {
         return agent.detect(AgentDetection.Redstone, senseDirection(direction))
     }
 
     /**
-     * Agent command mirror: inspect a block id.
+     * Inspect a known block next to the superagent character.
      */
-    //% blockId=superagent_agent_inspect_block block="superagent agent inspect block %direction"
-    //% group="Agent Work"
     export function agentInspectBlock(direction: SuperagentSense): number {
-        return agent.inspect(AgentInspection.Block, senseDirection(direction))
+        ensureCharacter()
+        return inspectKnownBlock(direction)
     }
 
     /**
      * Agent command mirror: inspect block data.
      */
-    //% blockId=superagent_agent_inspect_data block="superagent agent inspect data %direction"
-    //% group="Agent Work"
     export function agentInspectData(direction: SuperagentSense): number {
         return agent.inspect(AgentInspection.Data, senseDirection(direction))
     }
@@ -1851,8 +1846,6 @@ namespace superagent {
     /**
      * Agent command mirror: collect a specific item type.
      */
-    //% blockId=superagent_agent_collect_item block="superagent agent collect item %item"
-    //% group="Agent Work"
     export function agentCollectItem(item: number) {
         agent.collect(item)
     }
@@ -1860,9 +1853,6 @@ namespace superagent {
     /**
      * Agent command mirror: drop a quantity from one slot.
      */
-    //% blockId=superagent_agent_drop block="superagent agent drop slot %slot amount %amount %direction"
-    //% slot.min=1 slot.max=27 amount.min=1 amount.max=64
-    //% group="Agent Work"
     export function agentDrop(slot: number, amount: number, direction: SuperagentSense) {
         agent.drop(senseDirection(direction), clamp(slot, 1, 27), clamp(amount, 1, 64))
     }
@@ -1870,9 +1860,6 @@ namespace superagent {
     /**
      * Agent command mirror: move items between Agent inventory slots.
      */
-    //% blockId=superagent_agent_transfer block="superagent agent transfer from slot %fromSlot amount %amount to slot %toSlot"
-    //% fromSlot.min=1 fromSlot.max=27 toSlot.min=1 toSlot.max=27 amount.min=1 amount.max=64
-    //% group="Agent Work"
     export function agentTransfer(fromSlot: number, amount: number, toSlot: number) {
         agent.transfer(clamp(fromSlot, 1, 27), clamp(amount, 1, 64), clamp(toSlot, 1, 27))
     }
@@ -1880,9 +1867,6 @@ namespace superagent {
     /**
      * Agent command mirror: set an item stack in an Agent inventory slot.
      */
-    //% blockId=superagent_agent_set_item block="superagent agent set item %item amount %amount slot %slot"
-    //% amount.min=0 amount.max=64 slot.min=1 slot.max=27
-    //% group="Agent Work"
     export function agentSetItem(item: number, amount: number, slot: number) {
         agent.setItem(item, clamp(amount, 0, 64), clamp(slot, 1, 27))
     }
@@ -1890,9 +1874,6 @@ namespace superagent {
     /**
      * Agent command mirror: free space in an Agent inventory slot.
      */
-    //% blockId=superagent_agent_item_space block="superagent agent item space in slot %slot"
-    //% slot.min=1 slot.max=27
-    //% group="Agent Work"
     export function agentItemSpace(slot: number): number {
         return agent.getItemSpace(clamp(slot, 1, 27))
     }
@@ -1900,9 +1881,6 @@ namespace superagent {
     /**
      * Agent command mirror: item detail/data in an Agent inventory slot.
      */
-    //% blockId=superagent_agent_item_detail block="superagent agent item detail in slot %slot"
-    //% slot.min=1 slot.max=27
-    //% group="Agent Work"
     export function agentItemDetail(slot: number): number {
         return agent.getItemDetail(clamp(slot, 1, 27))
     }
@@ -1910,9 +1888,6 @@ namespace superagent {
     /**
      * Number of items in the given Agent inventory slot.
      */
-    //% blockId=superagent_inventory_count block="superagent items in slot %slot"
-    //% slot.min=1 slot.max=27
-    //% group="Agent Work"
     export function inventoryCount(slot: number): number {
         slot = clamp(slot, 1, 27)
         return agent.getItemCount(slot)
@@ -1921,9 +1896,6 @@ namespace superagent {
     /**
      * True when the Agent slot holds at least the given amount.
      */
-    //% blockId=superagent_has_items block="superagent slot %slot has at least %amount"
-    //% slot.min=1 slot.max=27 amount.min=1 amount.max=64
-    //% group="Agent Work"
     export function hasItems(slot: number, amount: number): boolean {
         slot = clamp(slot, 1, 27)
         return agent.getItemCount(slot) >= amount
@@ -1932,8 +1904,6 @@ namespace superagent {
     /**
      * Drop the Agent's whole inventory in a direction.
      */
-    //% blockId=superagent_drop_items block="superagent drop items %direction"
-    //% group="Agent Work"
     export function dropItems(direction: SuperagentSense) {
         agent.dropAll(senseDirection(direction))
     }
@@ -1941,39 +1911,33 @@ namespace superagent {
     /**
      * Collect nearby dropped items into the Agent.
      */
-    //% blockId=superagent_collect_items block="superagent collect items"
-    //% group="Agent Work"
     export function collectItems() {
         agent.collectAll()
     }
 
     /**
-     * Bridge forward by placing a block under each step (equip a block first).
+     * Build a stone bridge forward from the superagent position.
      */
     //% blockId=superagent_bridge_forward block="superagent bridge forward %steps"
     //% steps.min=1 steps.max=64
-    //% group="Agent Work"
+    //% group="Build"
     export function bridgeForward(steps: number) {
         steps = clamp(steps, 1, 64)
-        for (let i = 0; i < steps; i++) {
-            agent.place(DOWN)
-            agent.move(FORWARD, 1)
+        for (let i = 1; i <= steps; i++) {
+            runBuildAtSuperagent("setblock ~ ~-1 ~-" + i + " stone")
         }
     }
 
     /**
-     * Build a climbing staircase forward and up (equip a block first).
+     * Build a stone staircase forward and up from the superagent position.
      */
     //% blockId=superagent_stair_up block="superagent stair up %steps"
     //% steps.min=1 steps.max=32
-    //% group="Agent Work"
+    //% group="Build"
     export function stairUp(steps: number) {
         steps = clamp(steps, 1, 32)
         for (let i = 0; i < steps; i++) {
-            agent.place(FORWARD)
-            agent.move(UP, 1)
-            agent.move(FORWARD, 1)
-            agent.place(DOWN)
+            runBuildAtSuperagent("setblock ~ " + relativeCoord(i) + " ~-" + (i + 1) + " stone")
         }
     }
 
@@ -2013,17 +1977,14 @@ namespace superagent {
      * Build a flat layer from rows of text (one string per row; X/#/1 = block).
      * Returns how many blocks were placed.
      */
-    //% blockId=superagent_build_layer block="superagent build layer %block rows %rows"
-    //% group="Blueprint"
     export function buildLayer(block: SuperagentBlock, rows: string[]): number {
-        ensureCharacter()
         let id = blockId(block)
         let placed = 0
         for (let z = 0; z < rows.length; z++) {
             let row = rows[z]
             for (let x = 0; x < row.length; x++) {
                 if (isFilledCell(row.charAt(x))) {
-                    runAtSuperagent("setblock ~" + x + " ~ ~" + z + " " + id)
+                    runBuildAtSuperagent("setblock ~" + x + " ~ ~" + z + " " + id)
                     placed++
                 }
             }
@@ -2035,10 +1996,7 @@ namespace superagent {
      * Build a 3D structure from rows of text. Use a row of "-" to start the next
      * layer up. X/#/1 = block. Returns how many blocks were placed.
      */
-    //% blockId=superagent_build_blueprint block="superagent build blueprint %block rows %rows"
-    //% group="Blueprint"
     export function buildBlueprint(block: SuperagentBlock, rows: string[]): number {
-        ensureCharacter()
         let id = blockId(block)
         let placed = 0
         let y = 0
@@ -2051,7 +2009,7 @@ namespace superagent {
             } else {
                 for (let x = 0; x < row.length; x++) {
                     if (isFilledCell(row.charAt(x))) {
-                        runAtSuperagent("setblock ~" + x + " ~" + y + " ~" + z + " " + id)
+                        runBuildAtSuperagent("setblock ~" + x + " ~" + y + " ~" + z + " " + id)
                         placed++
                     }
                 }
@@ -2070,16 +2028,13 @@ namespace superagent {
         if (transform == SuperagentTransform.MirrorZ || transform == SuperagentTransform.Rotate180) {
             pz = maxZ - z
         }
-        runAtSuperagent("setblock ~" + px + " ~ ~" + pz + " " + id)
+        runBuildAtSuperagent("setblock ~" + px + " ~ ~" + pz + " " + id)
     }
 
     /**
      * Build a 2D layer from rows of text, mirrored or rotated. Returns blocks placed.
      */
-    //% blockId=superagent_build_layer_transformed block="superagent build layer %block rows %rows %transform"
-    //% group="Blueprint"
     export function buildLayerTransformed(block: SuperagentBlock, rows: string[], transform: SuperagentTransform): number {
-        ensureCharacter()
         let id = blockId(block)
         let placed = 0
         let maxZ = rows.length - 1
@@ -2099,8 +2054,6 @@ namespace superagent {
     /**
      * Remember a region (two world corners) to copy later.
      */
-    //% blockId=superagent_copy_region block="superagent copy region from x %x1 y %y1 z %z1 to x %x2 y %y2 z %z2"
-    //% group="Blueprint"
     export function copyRegion(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) {
         copyX1 = x1
         copyY1 = y1
@@ -2111,17 +2064,16 @@ namespace superagent {
     }
 
     /**
-     * Paste the copied region at the character's position.
+     * Paste the copied region at the superagent position.
      */
     //% blockId=superagent_paste_here block="superagent paste here"
     //% group="Blueprint"
     export function pasteHere() {
-        ensureCharacter()
-        runAtSuperagent("clone " + copyX1 + " " + copyY1 + " " + copyZ1 + " " + copyX2 + " " + copyY2 + " " + copyZ2 + " ~ ~ ~")
+        runBuildAtSuperagent("clone " + copyX1 + " " + copyY1 + " " + copyZ1 + " " + copyX2 + " " + copyY2 + " " + copyZ2 + " ~ ~ ~")
     }
 
     /**
-     * Replace one block type with another inside a box at the character.
+     * Replace one block type with another inside a box at the superagent position.
      */
     //% blockId=superagent_replace_area block="superagent replace %fromBlock with %toBlock width %width height %height depth %depth"
     //% width.min=1 width.max=16 height.min=1 height.max=16 depth.min=1 depth.max=16
@@ -2130,8 +2082,7 @@ namespace superagent {
         width = clamp(width, 1, 16)
         height = clamp(height, 1, 16)
         depth = clamp(depth, 1, 16)
-        ensureCharacter()
-        runAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(toBlock) + " replace " + blockId(fromBlock))
+        runBuildAtSuperagent("fill ~ ~ ~ ~" + (width - 1) + " ~" + (height - 1) + " ~" + (depth - 1) + " " + blockId(toBlock) + " replace " + blockId(fromBlock))
     }
 
     /**
@@ -2175,9 +2126,6 @@ namespace superagent {
     /**
      * Special power: pull nearby dropped items to the player.
      */
-    //% blockId=superagent_magnet block="superagent magnet items radius %radius"
-    //% radius.min=1 radius.max=24
-    //% group="Powers"
     export function magnetItems(radius: number) {
         runAtAgent("scriptevent superagent:magnet " + clamp(radius, 1, 24))
     }
@@ -2260,8 +2208,6 @@ namespace superagent {
     /**
      * Thinking: add one to a saved counter (survives reloads).
      */
-    //% blockId=superagent_count_up block="superagent count up %key"
-    //% group="Thinking"
     export function countUp(key: any) {
         let value = memoryValue(key, 1024)
         if (value < 0) {
@@ -2273,8 +2219,6 @@ namespace superagent {
     /**
      * Thinking: set a saved on/off flag.
      */
-    //% blockId=superagent_set_flag block="superagent set flag %key %on"
-    //% group="Thinking"
     export function setFlag(key: any, on: boolean) {
         remember(key, on ? 1 : 0)
     }
@@ -2282,8 +2226,6 @@ namespace superagent {
     /**
      * Thinking: true when a saved flag is on.
      */
-    //% blockId=superagent_flag_is_on block="superagent flag %key is on"
-    //% group="Thinking"
     export function flagIsOn(key: any): boolean {
         return memoryEquals(key, 1)
     }
@@ -2337,12 +2279,4 @@ namespace superagent {
         runAtAgent("scriptevent superagent:reportpos")
     }
 
-    /**
-     * Communicate: walk the character to the Agent (pathfinding around walls).
-     */
-    export function meetAgent() {
-        followingAgent = false
-        ensureCharacter()
-        runAtAgent("scriptevent superagent:pathtoagent")
-    }
 }

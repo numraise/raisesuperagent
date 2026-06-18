@@ -115,6 +115,7 @@ function transformMakeCodeTs(source) {
     "blockId",
     "axisOffset",
     "blockAt",
+    "relativeCoord",
     "plotBlock",
     "isFilledCell",
     "placeTransformed",
@@ -255,6 +256,9 @@ function loadSuperagent(agent) {
       },
       execute(target, position, command) {
         agent.commandCalls.push(["execute", target, position, command]);
+        if (typeof agent.commandResponder === "function") {
+          return agent.commandResponder(command, target, position);
+        }
         return true;
       },
       teleportToPosition(target, destination) {
@@ -441,6 +445,7 @@ test("superagent reactive helpers sense first then act", () => {
   assert.strictEqual(toolkit.defendIfThreatened(6, 3), true);
   assert.strictEqual(toolkit.advanceUntilBlocked(0, 5), 5);
   const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("testfor @e[family=monster,r=5]")));
   assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
   assert(commands.some((command) => command.includes("testforblock")));
 });
@@ -502,9 +507,13 @@ test("superagent script wires smooth glide navigation", () => {
   assert(script.includes("function parseGoto"));
   assert(script.includes("function navStep"));
   assert(script.includes("stepToward(superagent.location, target, MOVE_SPEED)"));
-  assert(script.includes("facingLocation: target"));
+  assert(script.includes("function gridAlignedTeleportOptions"));
+  assert(script.includes("cardinalRotationFromTo"));
+  assert(script.includes("rotation: cardinalRotationFromTo(superagent.location, target)"));
+  assert(script.includes("rotation: cardinalRotationFromTo(superagent.location, waypoint)"));
+  assert(script.includes("rotation: cardinalRotationFromTo(guard.location, target)"));
   assert(script.includes('event.id === "superagent:goto"'));
-  assert(script.includes('event.id === "superagent:gotoagent"'));
+  assert(!script.includes('event.id === "superagent:gotoagent"'));
   assert(script.includes('event.id === "superagent:followwalk"'));
   assert(script.includes('event.id === "superagent:stop"'));
   assert(script.includes("navStep(player, superagent)"));
@@ -515,13 +524,11 @@ test("superagent extension sends walk commands and reads arrival", () => {
   const toolkit = loadSuperagent(agent);
   toolkit.spawnAtAgent();
   toolkit.walkTo(10, 64, -5);
-  toolkit.walkToAgent();
   toolkit.followWalk(true);
   toolkit.walkStop();
   assert.strictEqual(toolkit.reached(10, 64, -5), true);
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("scriptevent superagent:goto 10 64 -5")));
-  assert(commands.some((command) => command.includes("scriptevent superagent:gotoagent")));
   assert(commands.some((command) => command.includes("scriptevent superagent:followwalk on")));
   assert(commands.some((command) => command.includes("scriptevent superagent:stop")));
   assert(commands.some((command) => command.includes("testfor @e[type=superagent:superagent,x=10,y=64,z=-5,r=2]")));
@@ -553,11 +560,13 @@ test("superagent mining drives the Agent to destroy, move and collect", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.mineForward(3);
+  assert(agent.calls.some((call) => call[0] === "teleportToPlayer"));
   assert.strictEqual(agent.calls.filter((call) => call[0] === "destroy" && call[1] === Direction.FORWARD).length, 3);
   assert.strictEqual(agent.calls.filter((call) => call[0] === "move" && call[1] === Direction.FORWARD).length, 3);
   assert(agent.calls.some((call) => call[0] === "collectAll"));
   const before = agent.calls.length;
   toolkit.mineDown(2);
+  assert(agent.calls.slice(before).some((call) => call[0] === "teleportToPlayer"));
   assert(agent.calls.slice(before).some((call) => call[0] === "destroy" && call[1] === Direction.DOWN));
   const beforeStrip = agent.calls.length;
   toolkit.stripMine(2, 2, 1);
@@ -590,8 +599,8 @@ test("superagent home and squad blocks emit the right scriptevents", () => {
   toolkit.summonGuard();
   toolkit.dismissGuards();
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("scriptevent superagent:sethome")));
-  assert(commands.some((command) => command.includes("scriptevent superagent:gohome")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:sethome 10 20 30")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:gohome 10 20 30")));
   assert(commands.some((command) => command.includes("scriptevent superagent:clearhome")));
   assert(commands.some((command) => command.includes("scriptevent superagent:addguard")));
   assert(commands.some((command) => command.includes("scriptevent superagent:clearguards")));
@@ -627,7 +636,7 @@ test("superagent shape library emits geometry build commands", () => {
   const toolkit = loadSuperagent(agent);
   toolkit.spawnAtAgent();
   toolkit.buildPyramid(0, 3);
-  toolkit.buildStaircase(0, 3);
+  toolkit.buildStaircase(0, 1, 3);
   toolkit.buildCircle(0, 2);
   toolkit.buildDisc(0, 2);
   const commands = agent.commandCalls.map((call) => call[3]);
@@ -664,7 +673,7 @@ test("superagent script shows auto status on the character", () => {
   assert(script.includes("applyLabelWithStatus(superagent, status)"));
 });
 
-test("superagent agent-work blocks read inventory and build moves", () => {
+test("superagent agent-work blocks read inventory and superagent builds bridge and stairs", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   assert.strictEqual(toolkit.inventoryCount(1), 5);
@@ -674,14 +683,19 @@ test("superagent agent-work blocks read inventory and build moves", () => {
   toolkit.collectItems();
   toolkit.bridgeForward(3);
   toolkit.stairUp(2);
+  const commands = agent.commandCalls.map((call) => call[3]);
   assert(agent.calls.some((call) => call[0] === "dropAll"));
   assert(agent.calls.some((call) => call[0] === "collectAll"));
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "place" && call[1] === Direction.DOWN).length, 5);
-  assert(agent.calls.some((call) => call[0] === "place" && call[1] === Direction.FORWARD));
+  assert(!agent.calls.some((call) => call[0] === "place"));
+  assert(!agent.calls.some((call) => call[0] === "move"));
+  assert(commands.some((command) => command.includes("setblock ~ ~-1 ~-1 stone")));
+  assert(commands.some((command) => command.includes("setblock ~ ~ ~-1 stone")));
+  assert(commands.some((command) => command.includes("setblock ~ ~1 ~-2 stone")));
 });
 
 test("superagent mirrors core MakeCode Agent command blocks", () => {
   const agent = createMockAgent();
+  agent.commandResponder = (command) => !command.includes(" air");
   const toolkit = loadSuperagent(agent);
   toolkit.agentMove(0, 2);
   toolkit.agentTurn(1);
@@ -695,7 +709,7 @@ test("superagent mirrors core MakeCode Agent command blocks", () => {
   toolkit.agentSetSlot(2);
   assert.strictEqual(toolkit.agentDetectBlock(0), true);
   assert.strictEqual(toolkit.agentDetectRedstone(0), true);
-  assert.strictEqual(toolkit.agentInspectBlock(0), 42);
+  assert.strictEqual(toolkit.agentInspectBlock(0), 0);
   assert.strictEqual(toolkit.agentInspectData(0), 7);
   toolkit.agentCollectItem(1);
   toolkit.agentDrop(2, 3, 0);
@@ -714,10 +728,12 @@ test("superagent mirrors core MakeCode Agent command blocks", () => {
   assert(agent.calls.some((call) => call[0] === "attack" && call[1] === Direction.FORWARD));
   assert(agent.calls.some((call) => call[0] === "interact" && call[1] === Direction.FORWARD));
   assert(agent.calls.some((call) => call[0] === "setSlot" && call[1] === 2));
-  assert(agent.calls.some((call) => call[0] === "detect" && call[1] === 0 && call[2] === Direction.FORWARD));
   assert(agent.calls.some((call) => call[0] === "detect" && call[1] === 1 && call[2] === Direction.FORWARD));
-  assert(agent.calls.some((call) => call[0] === "inspect" && call[1] === 0 && call[2] === Direction.FORWARD));
   assert(agent.calls.some((call) => call[0] === "inspect" && call[1] === 1 && call[2] === Direction.FORWARD));
+  assert(!agent.calls.some((call) => call[0] === "detect" && call[1] === 0));
+  assert(!agent.calls.some((call) => call[0] === "inspect" && call[1] === 0));
+  assert(agent.commandCalls.some((call) => call[3].includes("testforblock ~ ~ ~-1 air")));
+  assert(agent.commandCalls.some((call) => call[3].includes("testforblock ~ ~ ~-1 stone")));
   assert(agent.calls.some((call) => call[0] === "collect" && call[1] === 1));
   assert(agent.calls.some((call) => call[0] === "drop" && call[1] === Direction.FORWARD && call[2] === 2 && call[3] === 3));
   assert(agent.calls.some((call) => call[0] === "transfer" && call[1] === 2 && call[2] === 3 && call[3] === 4));
@@ -793,7 +809,7 @@ test("superagent script wires A* pathfinding navigation", () => {
   assert(script.includes("dimension.getBlock"));
   assert(script.includes("if (stepAlongPath(superagent)) {"));
   assert(script.includes('event.id === "superagent:pathto"'));
-  assert(script.includes('event.id === "superagent:pathtoagent"'));
+  assert(!script.includes('event.id === "superagent:pathtoagent"'));
 });
 
 test("superagent extension sends pathfinding scriptevents", () => {
@@ -801,10 +817,8 @@ test("superagent extension sends pathfinding scriptevents", () => {
   const toolkit = loadSuperagent(agent);
   toolkit.spawnAtAgent();
   toolkit.pathTo(20, 64, -8);
-  toolkit.pathToAgent();
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("scriptevent superagent:pathto 20 64 -8")));
-  assert(commands.some((command) => command.includes("scriptevent superagent:pathtoagent")));
 });
 
 test("superagent builds a 2D layer from row text", () => {
@@ -863,7 +877,7 @@ test("superagent script recomputes its A* path when terrain changes", () => {
   assert(script.includes("function readPathGoal"));
   assert(script.includes("PATH_GOAL_X_PROP"));
   // stepAlongPath rechecks the next waypoint and recomputes when blocked
-  assert(script.includes("if (blockIsObstacle(superagent.dimension, Math.round(waypoint.x)"));
+  assert(script.includes("if (blockIsObstacle(superagent.dimension, Math.floor(waypoint.x)"));
   assert(script.includes("computeAndStorePath(superagent, goal)"));
 });
 
@@ -888,7 +902,6 @@ test("superagent basic command set covers control, sensing, thinking, judging, c
   assert.strictEqual(toolkit.dangerClose(8), true); // nearest hostile distance 1 <= 3
   // Communicate
   toolkit.report("hello");
-  toolkit.meetAgent();
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("scriptevent superagent:stop")));
   assert(commands.some((command) => command.includes("scriptevent superagent:face north")));
@@ -896,7 +909,6 @@ test("superagent basic command set covers control, sensing, thinking, judging, c
   assert(commands.some((command) => command.includes("scoreboard players set @s sa_kills 1")));
   assert(commands.some((command) => command.includes("scoreboard players set @s sa_armed 1")));
   assert(commands.some((command) => command.includes("title @s actionbar hello")));
-  assert(commands.some((command) => command.includes("scriptevent superagent:pathtoagent")));
   assert(agent.calls.some((call) => call[0] === "detect"));
 });
 
@@ -904,7 +916,9 @@ test("superagent script faces a direction on command", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function handleFace"));
   assert(script.includes('event.id === "superagent:face"'));
-  assert(script.includes("setRotation(rot)"));
+  assert(script.includes("setGridAlignedRotation(owned, rot)"));
+  assert(!script.includes("rot.x = -90"));
+  assert(!script.includes("rot.x = 90"));
 });
 
 test("superagent special powers send the right scriptevents", () => {
@@ -1221,43 +1235,60 @@ test("superagent toolbox hides duplicate or weakly verified legacy blocks", () =
     "superagent_reset_squad",
     "superagent_ground_below",
     "superagent_meet_agent",
+    "superagent_remember",
+    "superagent_forget",
+    "superagent_memory_equals",
+    "superagent_memory_at_least",
+    "superagent_memory_value",
+    "superagent_collect_items",
+    "superagent_drop_items",
+    "superagent_has_items",
+    "superagent_inventory_count",
+    "superagent_agent_set_slot",
+    "superagent_agent_collect_item",
+    "superagent_agent_drop",
+    "superagent_agent_transfer",
+    "superagent_agent_set_item",
+    "superagent_agent_item_space",
+    "superagent_agent_item_detail",
+    "superagent_agent_place",
+    "superagent_agent_destroy",
+    "superagent_agent_till",
+    "superagent_agent_attack",
+    "superagent_agent_interact",
+    "superagent_agent_detect_block",
+    "superagent_agent_detect_redstone",
+    "superagent_agent_inspect_block",
+    "superagent_agent_inspect_data",
+    "superagent_agent_move",
+    "superagent_agent_turn",
+    "superagent_agent_set_assist",
+    "superagent_agent_teleport_to_player",
+    "superagent_copy_region",
+    "superagent_build_layer",
+    "superagent_build_blueprint",
+    "superagent_build_layer_transformed",
+    "superagent_magnet",
+    "superagent_count_up",
+    "superagent_set_flag",
+    "superagent_flag_is_on",
   ].forEach((blockId) => {
     assert(!source.includes(`blockId=${blockId} `), blockId);
   });
 });
 
-test("superagent toolbox exposes value blocks for pluggable enum sockets", () => {
+test("superagent toolbox hides confusing enum value helper blocks", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('blockId=superagent_value_move_direction block="superagent direction %direction"'));
-  assert(source.includes('blockId=superagent_value_sense_direction block="superagent sense direction %direction"'));
   assert(source.includes('blockId=superagent_value_mob block="superagent mob %mob"'));
-  assert(source.includes('blockId=superagent_value_block block="superagent block %block"'));
-  assert(source.includes('blockId=superagent_value_transform block="superagent transform %transform"'));
+  assert(source.includes('blockId=superagent_value_world_direction block="superagent world direction %direction"'));
+  assert(!source.includes('blockId=superagent_value_move_direction block="superagent direction %direction"'));
+  assert(!source.includes('blockId=superagent_value_sense_direction block="superagent sense direction %direction"'));
+  assert(!source.includes('blockId=superagent_value_block block="superagent block %block"'));
+  assert(!source.includes('blockId=superagent_value_transform block="superagent transform %transform"'));
   assert(source.includes('group="Values"'));
 });
 
-test("superagent toolbox mirrors core Agent command blocks", () => {
+test("superagent toolbox hides legacy Agent command mirrors", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  [
-    'blockId=superagent_agent_move block="superagent agent move %direction steps %steps"',
-    'blockId=superagent_agent_turn block="superagent agent turn %turn"',
-    'blockId=superagent_agent_set_assist block="superagent agent assist %assist %on"',
-    'blockId=superagent_agent_teleport_to_player block="superagent agent teleport to player"',
-    'blockId=superagent_agent_place block="superagent agent place %direction"',
-    'blockId=superagent_agent_destroy block="superagent agent destroy %direction"',
-    'blockId=superagent_agent_till block="superagent agent till %direction"',
-    'blockId=superagent_agent_attack block="superagent agent attack %direction"',
-    'blockId=superagent_agent_interact block="superagent agent interact %direction"',
-    'blockId=superagent_agent_set_slot block="superagent agent set slot %slot"',
-    'blockId=superagent_agent_detect_block block="superagent agent detect block %direction"',
-    'blockId=superagent_agent_detect_redstone block="superagent agent detect redstone %direction"',
-    'blockId=superagent_agent_inspect_block block="superagent agent inspect block %direction"',
-    'blockId=superagent_agent_inspect_data block="superagent agent inspect data %direction"',
-    'blockId=superagent_agent_collect_item block="superagent agent collect item %item"',
-    'blockId=superagent_agent_drop block="superagent agent drop slot %slot amount %amount %direction"',
-    'blockId=superagent_agent_transfer block="superagent agent transfer from slot %fromSlot amount %amount to slot %toSlot"',
-    'blockId=superagent_agent_set_item block="superagent agent set item %item amount %amount slot %slot"',
-    'blockId=superagent_agent_item_space block="superagent agent item space in slot %slot"',
-    'blockId=superagent_agent_item_detail block="superagent agent item detail in slot %slot"',
-  ].forEach((block) => assert(source.includes(block), block));
+  assert(!source.includes('block="superagent agent '));
 });

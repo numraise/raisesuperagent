@@ -64,7 +64,6 @@ target. The behavior-pack script moves it a fraction of a block each tick and fa
 travel direction, so movement looks continuous.
 
 - `superagent walk to x %x y %y z %z` — glide to a world position
-- `superagent walk to agent` — glide to the Agent's current spot once
 - `superagent follow walk %on` — keep gliding after the Agent
 - `superagent reached x %x y %y z %z` → boolean (within 2 blocks of that spot)
 - `superagent stop` — stop and clear the current target
@@ -80,11 +79,10 @@ The path is **adaptive**: it stores the goal, and if a waypoint becomes blocked 
 (e.g. someone builds a wall in front of it), it recomputes the route automatically.
 
 - `superagent path to x %x y %y z %z` — pathfind around obstacles to a position
-- `superagent path to agent` — pathfind around obstacles to the Agent
 
 ### Build (data-structure practice)
 
-Build blocks place structures with `/fill` and `/setblock` from the character corner, so they
+Build blocks place structures with `/fill` and `/setblock` from the superagent position, so they
 need operator/cheat permission. `superagent build row` reads a text pattern, which is a nice
 way to teach string and array iteration.
 
@@ -96,7 +94,7 @@ way to teach string and array iteration.
 - `superagent build row %block pattern %pattern` → number placed (`X`, `#` or `1` = block, else gap)
 - `superagent clear area width %w height %h depth %d` — fill with air
 - `superagent build pyramid %block size %size` — stepped pyramid
-- `superagent build staircase %block steps %steps` — diagonal stairs
+- `superagent build staircase %block direction %direction steps %steps` — diagonal stairs in a chosen direction
 - `superagent build circle %block radius %radius` — circle outline (midpoint algorithm)
 - `superagent build disc %block radius %radius` — filled round floor
 
@@ -105,13 +103,13 @@ way to teach string and array iteration.
 Build whole structures from text arrays, or copy a region of the world. Great for teaching 2D
 and 3D arrays and coordinate math. These use `/setblock`, `/clone` and `/fill ... replace`.
 
-- `superagent build layer %block rows` → number — 2D layer from an array of row strings
+- `superagent build layer %block rows` → number — 2D layer from an array of row strings anchored at the superagent position
   (`X`/`#`/`1` = block, anything else = gap)
-- `superagent build blueprint %block rows` → number — 3D build; a row of `-` starts the next layer up
-- `superagent build layer %block rows %transform` → number — 2D layer mirrored or rotated (none / mirror X / mirror Z / rotate 180)
+- `superagent build blueprint %block rows` → number — 3D build; a row of `-` starts the next layer up from the superagent position
+- `superagent build layer %block rows %transform` → number — 2D layer mirrored or rotated (none / mirror X / mirror Z / rotate 180) around the superagent position
 - `superagent copy region from %x1 %y1 %z1 to %x2 %y2 %z2` — remember two world corners
-- `superagent paste here` — clone the copied region at the character
-- `superagent replace %fromBlock with %toBlock width %w height %h depth %d` — swap one block type for another
+- `superagent paste here` — clone the copied region at the superagent position
+- `superagent replace %fromBlock with %toBlock width %w height %h depth %d` — swap one block type for another at the superagent position
 
 ### Mine (Agent-driven, collects drops)
 
@@ -186,7 +184,7 @@ Primitive blocks grouped so students can build their own logic, organised as
 
 - Control: `superagent stop`, `superagent face %direction`
 - Sensing: `superagent distance to agent up to %max` → number
-- Thinking: `superagent random 1 to %max` → number, `superagent count up %key`, `superagent set flag %key %on`, `superagent flag %key is on` → boolean
+- Thinking: `superagent random 1 to %max` → number
 - Judging: `superagent should attack within %radius` → boolean, `superagent is safe within %radius` → boolean, `superagent danger close within %radius` → boolean
 - Communicate: `superagent report %text` (on-screen message)
 
@@ -198,10 +196,10 @@ Import the add-on bundle:
 node tools/package-superagent-addon.js
 ```
 
-Then open `dist/superagent-0.1.48.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. For the full block set, the world must have Cheats enabled and students should run as Operator in Survival.
+Then open `dist/superagent-0.1.57.mcaddon` with Minecraft Education and activate both the behavior pack and resource pack in the world. A world owner or teacher must activate the pack first. For the full block set, the world must have Cheats enabled and students should run as Operator in Survival.
 
 Local build output only (do not upload .mcaddon to the repo):
-`dist/superagent-0.1.48.mcaddon`
+`dist/superagent-0.1.57.mcaddon`
 
 Auto-guard combat starts **off**. Turn it on from code with the `superagent auto guard on` block (or `/scriptevent superagent:combat on`) when you want the character to fight nearby hostiles automatically. Explicit attack blocks work at any time.
 
@@ -214,7 +212,7 @@ https://github.com/numraise/raisesuperagent
 For a pinned classroom build, use:
 
 ```text
-https://github.com/numraise/raisesuperagent#superagent-0.1.48
+https://github.com/numraise/raisesuperagent#superagent-0.1.57
 ```
 
 ## Test
