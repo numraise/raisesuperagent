@@ -159,8 +159,10 @@ namespace superagent {
     let followLoopStarted = false
     let followingAgent = false
     let superagentPosition = pos(0, 0, 0)
-    let homePosition = pos(0, 0, 0)
     let homePositionSet = false
+    let homeX = 0
+    let homeY = 0
+    let homeZ = 0
     let trackedX = 0
     let trackedY = 0
     let trackedZ = 0
@@ -227,6 +229,10 @@ namespace superagent {
         trackedZ = roundedPositionValue(z)
     }
 
+    function setTrackedPositionFrom(position: Position) {
+        setTrackedPosition(position.getValue(Axis.X), position.getValue(Axis.Y), position.getValue(Axis.Z))
+    }
+
     function moveTrackedPosition(direction: SuperagentMoveDirection, blocks: number) {
         if (direction == SuperagentMoveDirection.East) {
             trackedX += blocks
@@ -265,6 +271,7 @@ namespace superagent {
     function teleportCharacterTo(position: Position) {
         let oldPosition = superagentPosition
         superagentPosition = position
+        setTrackedPositionFrom(position)
         teleportCharacterFrom(oldPosition, superagentPosition)
     }
 
@@ -1651,9 +1658,11 @@ namespace superagent {
     //% group="Memory"
     export function setHome() {
         ensureCharacter()
-        homePosition = pos(superagentPosition.x, superagentPosition.y, superagentPosition.z)
+        homeX = trackedX
+        homeY = trackedY
+        homeZ = trackedZ
         homePositionSet = true
-        runAtAgent("scriptevent superagent:sethome " + homePosition.x + " " + homePosition.y + " " + homePosition.z)
+        runAtAgent("scriptevent superagent:sethome " + homeX + " " + homeY + " " + homeZ)
     }
 
     /**
@@ -1665,9 +1674,9 @@ namespace superagent {
         followingAgent = false
         ensureCharacter()
         if (homePositionSet) {
-            superagentPosition = pos(homePosition.x, homePosition.y, homePosition.z)
-            setTrackedPosition(homePosition.x, homePosition.y, homePosition.z)
-            runAtAgent("scriptevent superagent:gohome " + homePosition.x + " " + homePosition.y + " " + homePosition.z)
+            superagentPosition = pos(homeX, homeY, homeZ)
+            setTrackedPosition(homeX, homeY, homeZ)
+            runAtAgent("scriptevent superagent:gohome " + homeX + " " + homeY + " " + homeZ)
             return
         }
         runAtAgent("scriptevent superagent:gohome")
