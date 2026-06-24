@@ -366,10 +366,8 @@ namespace superagent {
     }
 
     function attackCommandBurst(strength: number) {
-        // Particles run as the player (no selector). The actual damage + the
-        // spin animation are handled by the behavior pack via this scriptevent.
-        runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
-        runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
+        // The behavior pack owns combat particles so they anchor on the
+        // superagent entity, not on the player running MakeCode commands.
         runAtAgent("scriptevent superagent:burst")
         lastBurstCount += strength
     }
@@ -683,10 +681,8 @@ namespace superagent {
         radius = clamp(radius, 1, 5)
         strength = clamp(strength, 1, 3)
         ensureCharacter()
-        runAtSuperagent("particle superagent:attack_burst ~ ~0.8 ~")
-        runAtSuperagent("particle minecraft:critical_hit_emitter ~ ~1 ~")
-        // Delegate the actual damage to the behavior pack (script API, reliable on
-        // Education) instead of @e selector commands that the parser rejects.
+        // Delegate visual effects and damage to the behavior pack so particles
+        // stay centered on the superagent entity.
         runAtAgent("scriptevent superagent:burst")
     }
 

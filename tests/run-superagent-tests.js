@@ -383,7 +383,8 @@ test("superagent extension controls an independent one-block character position"
   toolkit.attackFromCharacter(5, 4);
   const commands = agent.commandCalls.map((call) => call[3]);
   const positions = agent.commandCalls.map((call) => call[2]);
-  assert(commands.some((command) => command.includes("particle superagent:attack_burst")));
+  assert(!commands.some((command) => command.includes("particle superagent:attack_burst")));
+  assert(!commands.some((command) => command.includes("particle minecraft:critical_hit_emitter")));
   assert(!commands.some((command) => command.includes("particle superagent:agent_aura")));
   // Damage is delegated to the behavior pack via a scriptevent (reliable on Education).
   assert(commands.some((command) => command.includes("scriptevent superagent:burst")));
@@ -419,7 +420,7 @@ test("superagent extension provides many smart movement commands", () => {
   // Grid moves are collision-aware steps; orbit/evade still reposition directly.
   assert(agent.commandCalls.some((call) => call[3].includes("scriptevent superagent:step")));
   assert(agent.mobCalls.some((call) => call[0] === "teleportToPosition"));
-  assert(agent.commandCalls.some((call) => call[3].includes("particle superagent:attack_burst")));
+  assert(!agent.commandCalls.some((call) => call[3].includes("particle superagent:attack_burst")));
 });
 
 test("superagent sensing blocks return values for if/loop programming", () => {
