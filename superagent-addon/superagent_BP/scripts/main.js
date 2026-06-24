@@ -546,13 +546,17 @@ function transportSuperagentToEgg(spawned) {
   if (owned && owned.id !== spawned.id) {
     configureSuperagent(owned, player);
     clearMovementState(owned);
+    let movedOwned = false;
     try {
-      teleportEntityOpen(owned, target);
+      movedOwned = teleportEntityOpen(owned, target);
       playDogSound(owned, "ready", { volume: 0.6, pitch: 1.1 });
     } catch (error) {
     }
-    removeEntitySafe(spawned);
-    return;
+    if (movedOwned) {
+      removeEntitySafe(spawned);
+      return;
+    }
+    removeEntitySafe(owned);
   }
   configureSuperagent(spawned, player);
   snapEntityToGridAlignment(spawned, true);
@@ -779,7 +783,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.61 script active");
+      player.sendMessage("superagent 0.1.62 script active");
     }
   } catch (error) {
   }
@@ -1724,6 +1728,13 @@ function isPlayerSource(entity) {
   return entity && entity.typeId === "minecraft:player";
 }
 
+function playersForEvent(event) {
+  if (isPlayerSource(event.sourceEntity)) {
+    return [event.sourceEntity];
+  }
+  return world.getPlayers();
+}
+
 try {
   if (world.afterEvents && world.afterEvents.entitySpawn) {
     world.afterEvents.entitySpawn.subscribe((event) => {
@@ -1831,14 +1842,14 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:recall") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleRecall(event.sourceEntity);
+    for (const player of playersForEvent(event)) {
+      handleRecall(player);
     }
     return;
   }
   if (event.id === "superagent:spawnat") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleSpawnAt(event.sourceEntity, event.message);
+    for (const player of playersForEvent(event)) {
+      handleSpawnAt(player, event.message);
     }
     return;
   }
