@@ -779,7 +779,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.60 script active");
+      player.sendMessage("superagent 0.1.61 script active");
     }
   } catch (error) {
   }
@@ -1290,7 +1290,7 @@ function tickGuards(player, tick) {
 function tickPlayer(player, tick) {
   announceReady(player);
   cleanupLegacyVisibleMarkers(player, player.location);
-  const ownedSuperagent = ensureOwnedSuperagent(player);
+  const ownedSuperagent = closestEntity(findOwnedSuperagentsInDimension(player), player.location);
   if (ownedSuperagent) {
     tickSuperagent(player, ownedSuperagent, tick);
   }
@@ -1691,7 +1691,7 @@ function handleReset(player) {
 
 // Bring the player's character to the player's own position.
 function handleRecall(player) {
-  const owned = ownedSuperagentForEvent(player);
+  const owned = ensureOwnedSuperagent(player);
   if (!owned) {
     return;
   }
@@ -1699,6 +1699,23 @@ function handleRecall(player) {
   try {
     teleportEntityOpen(owned, { x: player.location.x, y: player.location.y, z: player.location.z });
     playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
+  } catch (error) {
+  }
+}
+
+function handleSpawnAt(player, message) {
+  const target = parseGoto(message);
+  if (!target) {
+    return;
+  }
+  const owned = ensureOwnedSuperagent(player);
+  if (!owned) {
+    return;
+  }
+  clearMovementState(owned);
+  try {
+    teleportEntityOpen(owned, target);
+    playDogSound(owned, "ready", { volume: 0.6, pitch: 1.1 });
   } catch (error) {
   }
 }
@@ -1816,6 +1833,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id === "superagent:recall") {
     if (isPlayerSource(event.sourceEntity)) {
       handleRecall(event.sourceEntity);
+    }
+    return;
+  }
+  if (event.id === "superagent:spawnat") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleSpawnAt(event.sourceEntity, event.message);
     }
     return;
   }

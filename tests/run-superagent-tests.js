@@ -1127,7 +1127,8 @@ test("superagent script protects and powers MakeCode-controlled character withou
   assert(script.includes("target.applyDamage(ATTACK_DAMAGE"));
   assert(script.includes("dimension.spawnParticle"));
   assert(script.includes("function tickSuperagent"));
-  assert(script.includes("const ownedSuperagent = ensureOwnedSuperagent(player)"));
+  assert(script.includes("const ownedSuperagent = closestEntity(findOwnedSuperagentsInDimension(player), player.location)"));
+  assert(script.includes('event.id === "superagent:spawnat"'));
   assert(!script.includes("function followAgent"));
   assert(!script.includes("superagent.teleport(agentEntity.location"));
 });

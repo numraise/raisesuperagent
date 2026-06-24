@@ -614,7 +614,9 @@ namespace superagent {
     //% group="Control"
     export function spawnAtAgent() {
         followingAgent = false
-        setSuperagentPosition(agent.getPosition())
+        let target = agent.getPosition()
+        setSuperagentPosition(target)
+        runAtAgent("scriptevent superagent:spawnat " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
     }
 
     /**
