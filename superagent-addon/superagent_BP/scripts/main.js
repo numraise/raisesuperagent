@@ -542,32 +542,16 @@ function transportSuperagentToEgg(spawned) {
     y: spawned.location.y,
     z: spawned.location.z
   };
-  const owned = closestEntity(findOwnedSuperagentsInDimension(player), spawned.location);
-  if (owned && owned.id !== spawned.id) {
-    configureSuperagent(owned, player);
-    clearMovementState(owned);
-    let movedOwned = false;
-    try {
-      movedOwned = teleportEntityOpen(owned, target);
-      playDogSound(owned, "ready", { volume: 0.6, pitch: 1.1 });
-    } catch (error) {
-    }
-    if (movedOwned) {
-      removeEntitySafe(spawned);
-      return;
-    }
-    removeEntitySafe(owned);
-  }
   configureSuperagent(spawned, player);
   snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
   playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
   const tag = ownerTag(player);
-  for (const other of allNearbySuperagents(player)) {
+  for (const other of allDimensionSuperagents(player)) {
     if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
       continue;
     }
-    if (other.hasTag(tag) || !isOwnedByAnyone(other)) {
+    if (other.hasTag(tag)) {
       removeEntitySafe(other);
     }
   }
@@ -783,7 +767,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.62 script active");
+      player.sendMessage("superagent 0.1.63 script active");
     }
   } catch (error) {
   }

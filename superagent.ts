@@ -616,6 +616,7 @@ namespace superagent {
         followingAgent = false
         let target = agent.getPosition()
         setSuperagentPosition(target)
+        runAtAgent("summon superagent:superagent " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
         runAtAgent("scriptevent superagent:spawnat " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
     }
 
@@ -626,6 +627,7 @@ namespace superagent {
     //% group="Control"
     export function spawnAtPlayer() {
         followingAgent = false
+        runAtAgent("execute as @s at @s run summon superagent:superagent ~ ~ ~")
         runAtAgent("scriptevent superagent:recall")
     }
 

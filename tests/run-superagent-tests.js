@@ -1157,12 +1157,11 @@ test("superagent spawn egg transports the owned character instead of leaving dup
   assert(script.includes("function findOwnedSuperagentsInDimension"));
   assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
   assert(script.includes("transportSuperagentToEgg(event.entity)"));
-  assert(script.includes("closestEntity(findOwnedSuperagentsInDimension(player), spawned.location)"));
-  assert(script.includes("teleportEntityOpen(owned, target)"));
-  assert(script.includes("if (movedOwned)"));
-  assert(script.includes("removeEntitySafe(spawned)"));
-  assert(script.includes("removeEntitySafe(owned)"));
-  assert(script.includes("clearMovementState(owned)"));
+  assert(script.includes("configureSuperagent(spawned, player)"));
+  assert(script.includes("for (const other of allDimensionSuperagents(player))"));
+  assert(script.includes("if (other.hasTag(tag))"));
+  assert(script.includes("removeEntitySafe(other)"));
+  assert(!script.includes("removeEntitySafe(spawned)"));
 });
 
 test("superagent auto-combat is teacher-toggleable and off by default", () => {
