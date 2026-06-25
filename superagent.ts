@@ -96,6 +96,17 @@ enum SuperagentTurn {
     Right = 1
 }
 
+enum SuperagentFaceDirection {
+    //% block="north"
+    North = 0,
+    //% block="east"
+    East = 1,
+    //% block="south"
+    South = 2,
+    //% block="west"
+    West = 3
+}
+
 enum SuperagentAssist {
     //% block="place on move"
     PlaceOnMove = 0,
@@ -523,6 +534,17 @@ namespace superagent {
     }
 
     /**
+     * Hard-stop all combat: turn auto guard off and clear any in-progress
+     * attack/spin state so the character stops fighting immediately.
+     */
+    //% blockId=superagent_stop_combat block="superagent stop combat"
+    //% group="Combat"
+    export function stopCombat() {
+        runAtAgent("scriptevent superagent:combat off")
+        runAtAgent("scriptevent superagent:stopcombat")
+    }
+
+    /**
      * Show a small Agent status gesture that does not require commands.
      */
     export function showStatus(status: SuperagentStatus) {
@@ -635,7 +657,12 @@ namespace superagent {
     //% blockId=superagent_recall_to_agent block="superagent recall to agent"
     //% group="Control"
     export function recallToAgent() {
-        setSuperagentPosition(agent.getPosition())
+        // Read THIS player's own Agent position and send explicit coordinates so
+        // the behavior pack never has to guess/scan for an Agent. In multiplayer
+        // this keeps the recall scoped to the caller's own superagent + Agent.
+        let target = agent.getPosition()
+        setSuperagentPosition(target)
+        runAtAgent("scriptevent superagent:spawnat " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
     }
 
     /**
@@ -1553,13 +1580,10 @@ namespace superagent {
     //% group="Mine"
     export function mineForward(length: number) {
         length = clamp(length, 1, 64)
-        agent.teleportToPlayer()
-        for (let i = 0; i < length; i++) {
-            agent.destroy(FORWARD)
-            agent.destroy(UP)
-            agent.move(FORWARD, 1)
-            agent.collectAll()
-        }
+        ensureCharacter()
+        // The visible superagent breaks the blocks itself (handled in the behavior
+        // pack), instead of delegating to the normal Minecraft Agent.
+        runAtAgent("scriptevent superagent:mine forward " + length)
     }
 
     /**
@@ -1570,12 +1594,10 @@ namespace superagent {
     //% group="Mine"
     export function mineDown(depth: number) {
         depth = clamp(depth, 1, 64)
-        agent.teleportToPlayer()
-        for (let i = 0; i < depth; i++) {
-            agent.destroy(DOWN)
-            agent.move(DOWN, 1)
-            agent.collectAll()
-        }
+        ensureCharacter()
+        // The visible superagent digs straight down itself (handled in the
+        // behavior pack), instead of delegating to the normal Minecraft Agent.
+        runAtAgent("scriptevent superagent:mine down " + depth)
     }
 
     /**
@@ -1588,24 +1610,10 @@ namespace superagent {
         length = clamp(length, 1, 64)
         tunnels = clamp(tunnels, 1, 8)
         gap = clamp(gap, 1, 4)
-        for (let t = 0; t < tunnels; t++) {
-            mineForward(length)
-            agent.turn(TurnDirection.Right)
-            for (let g = 0; g < gap; g++) {
-                agent.destroy(FORWARD)
-                agent.destroy(UP)
-                agent.move(FORWARD, 1)
-            }
-            agent.turn(TurnDirection.Right)
-            mineForward(length)
-            agent.turn(TurnDirection.Left)
-            for (let g = 0; g < gap; g++) {
-                agent.destroy(FORWARD)
-                agent.destroy(UP)
-                agent.move(FORWARD, 1)
-            }
-            agent.turn(TurnDirection.Left)
-        }
+        ensureCharacter()
+        // The visible superagent digs the strip itself (handled in the behavior
+        // pack), instead of delegating to the normal Minecraft Agent.
+        runAtAgent("scriptevent superagent:mine strip " + length + " " + tunnels + " " + gap)
     }
 
     /**
@@ -2175,8 +2183,21 @@ namespace superagent {
      */
     //% blockId=superagent_face block="superagent face %direction"
     //% group="Control"
-    export function face(direction: SuperagentMoveDirection) {
-        runAtAgent("scriptevent superagent:face " + directionName(direction))
+    export function face(direction: SuperagentFaceDirection) {
+        runAtAgent("scriptevent superagent:face " + faceDirectionName(direction))
+    }
+
+    function faceDirectionName(direction: SuperagentFaceDirection): string {
+        if (direction == SuperagentFaceDirection.East) {
+            return "east"
+        }
+        if (direction == SuperagentFaceDirection.South) {
+            return "south"
+        }
+        if (direction == SuperagentFaceDirection.West) {
+            return "west"
+        }
+        return "north"
     }
 
     /**

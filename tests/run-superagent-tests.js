@@ -557,21 +557,20 @@ test("superagent build blocks emit fill and setblock commands", () => {
   assert.strictEqual(placed, 3);
 });
 
-test("superagent mining drives the Agent to destroy, move and collect", () => {
+test("superagent mining is performed by the visible superagent, not the Agent", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.mineForward(3);
-  assert(agent.calls.some((call) => call[0] === "teleportToPlayer"));
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "destroy" && call[1] === Direction.FORWARD).length, 3);
-  assert.strictEqual(agent.calls.filter((call) => call[0] === "move" && call[1] === Direction.FORWARD).length, 3);
-  assert(agent.calls.some((call) => call[0] === "collectAll"));
-  const before = agent.calls.length;
   toolkit.mineDown(2);
-  assert(agent.calls.slice(before).some((call) => call[0] === "teleportToPlayer"));
-  assert(agent.calls.slice(before).some((call) => call[0] === "destroy" && call[1] === Direction.DOWN));
-  const beforeStrip = agent.calls.length;
   toolkit.stripMine(2, 2, 1);
-  assert(agent.calls.slice(beforeStrip).some((call) => call[0] === "turn"));
+  const commands = agent.commandCalls.map((call) => call[3]);
+  // The behavior pack breaks the blocks at the superagent position.
+  assert(commands.some((command) => command.includes("scriptevent superagent:mine forward 3")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:mine down 2")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:mine strip 2 2 1")));
+  // The normal Minecraft Agent must NOT do the mining anymore.
+  assert(!agent.calls.some((call) => call[0] === "destroy"));
+  assert(!agent.calls.some((call) => call[0] === "teleportToPlayer"));
 });
 
 test("superagent memory stores and reads scoreboard-backed values", () => {
@@ -920,6 +919,104 @@ test("superagent script faces a direction on command", () => {
   assert(script.includes("setGridAlignedRotation(owned, rot)"));
   assert(!script.includes("rot.x = -90"));
   assert(!script.includes("rot.x = 90"));
+});
+
+// BUG-003: face direction dropdown must offer only the four horizontal
+// directions. Movement direction may still include up/down.
+test("superagent face dropdown has no up/down (movement keeps them)", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  // The face block uses the dedicated face enum, not the movement enum.
+  assert(source.includes("export function face(direction: SuperagentFaceDirection)"));
+  const faceEnum = source.match(/enum SuperagentFaceDirection\s*\{([\s\S]*?)\}/);
+  assert(faceEnum, "SuperagentFaceDirection enum should exist");
+  assert(!/block="up"/.test(faceEnum[1]));
+  assert(!/block="down"/.test(faceEnum[1]));
+  assert(/North/.test(faceEnum[1]) && /East/.test(faceEnum[1]) && /South/.test(faceEnum[1]) && /West/.test(faceEnum[1]));
+  // Movement direction enum still supports vertical movement.
+  const moveEnum = source.match(/enum SuperagentMoveDirection\s*\{([\s\S]*?)\}/);
+  assert(/block="up"/.test(moveEnum[1]) && /block="down"/.test(moveEnum[1]));
+});
+
+// BUG-004: a face-only block must rotate and never emit a movement/step event.
+test("superagent face emits only a face scriptevent (no step/move)", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtAgent();
+  agent.commandCalls.length = 0;
+  toolkit.face(1); // east
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:face east")));
+  assert(!commands.some((command) => command.includes("scriptevent superagent:step")));
+  assert(!agent.calls.some((call) => call[0] === "move"));
+});
+
+// BUG-004 + source fallback: face/step act on every player's own superagent when
+// the scriptevent did not carry a source player, so they never fail silently.
+test("superagent script routes face/step through a player fallback", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("for (const player of playersForEvent(event)) {\n      handleFace(player, event.message);"));
+  assert(script.includes("for (const player of playersForEvent(event)) {\n      handleStep(player, event.message);"));
+});
+
+// BUG-006: go home must forward event.message, and home handlers must resolve an
+// owner instead of silently returning when no source player is present.
+test("superagent script routes home events with message + owner fallback", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("handleGoHome(player, event.message)"));
+  assert(script.includes("handleSetHome(player, event.message)"));
+  assert(script.includes("function ownerPlayersForEvent"));
+  assert(script.includes("ownerPlayersForEvent(event, target)"));
+  // No silent failure: handlers give feedback when there is no home/superagent.
+  assert(script.includes("sendFeedback"));
+});
+
+// BUG-002: spawn/recall-at-agent carries explicit own-Agent coordinates and is
+// scoped to the owner, never the whole world.
+test("superagent recall to agent sends explicit own-agent coordinates", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.recallToAgent();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:spawnat 10 20 30")));
+});
+
+test("superagent script scopes spawnat to the owning player", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes('event.id === "superagent:spawnat"'));
+  // spawnat resolves an owner; it must not iterate all players unconditionally.
+  assert(script.includes("ownerPlayersForEvent(event, target)"));
+});
+
+// BUG-005: the visible superagent breaks blocks itself (BP-side), no Agent.
+test("superagent script mines blocks at the superagent position", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handleMine"));
+  assert(script.includes('event.id === "superagent:mine"'));
+  assert(script.includes("function mineTunnelForward"));
+  assert(script.includes("function mineShaftDown"));
+  assert(script.includes("air destroy"));
+});
+
+// BUG-007: turning the guard off (or stop combat) clears the flag + visuals and
+// combat does not leak across world sessions.
+test("superagent script stops combat reliably and resets on load", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function clearAllCombatVisuals"));
+  assert(script.includes("function handleStopCombat"));
+  assert(script.includes('event.id === "superagent:stopcombat"'));
+  // off path clears visuals immediately
+  assert(/setCombatEnabled\(false\);[\s\S]{0,240}clearAllCombatVisuals\(\);/.test(script));
+  // combat flag is reset to off on script load (no cross-session leak)
+  assert(/Combat is off by default[\s\S]*setCombatEnabled\(false\);/.test(script));
+});
+
+test("superagent stop combat block clears combat", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.stopCombat();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:combat off")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:stopcombat")));
 });
 
 test("superagent script keeps idle and spawned cubes grid aligned", () => {

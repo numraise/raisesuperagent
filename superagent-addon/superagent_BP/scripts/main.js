@@ -767,7 +767,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.64 script active");
+      player.sendMessage("superagent 0.1.65 script active");
     }
   } catch (error) {
   }
@@ -1340,7 +1340,68 @@ function handleCombatToggle(message) {
     setCombatEnabled(true);
   } else if (msg === "off" || msg === "disable" || msg === "false" || msg === "0") {
     setCombatEnabled(false);
+    // Turning the guard off must also clear any in-progress attack/spin so the
+    // character visibly stops fighting right away (no lingering combat).
+    clearAllCombatVisuals();
   }
+}
+
+// Stop the short attack spin on every owned superagent and guard so combat does
+// not appear to "keep running" after it has been turned off.
+function clearAllCombatVisuals() {
+  for (const player of world.getPlayers()) {
+    const owned = ownedSuperagentForEvent(player);
+    if (owned) {
+      try {
+        owned.setDynamicProperty(SPIN_PROP, undefined);
+      } catch (error) {
+      }
+      setGridAlignedRotation(owned, { x: 0, y: 0 });
+    }
+    for (const guard of findGuards(player)) {
+      try {
+        guard.setDynamicProperty(SPIN_PROP, undefined);
+      } catch (error) {
+      }
+    }
+  }
+}
+
+// Full combat stop: clear the global flag, dismiss guards, and reset visuals.
+function handleStopCombat() {
+  setCombatEnabled(false);
+  for (const player of world.getPlayers()) {
+    removeGuards(player);
+  }
+  clearAllCombatVisuals();
+}
+
+// Send a short on-screen message to the player so commands never fail silently.
+function sendFeedback(player, text) {
+  if (!player || typeof player.sendMessage !== "function") {
+    return;
+  }
+  try {
+    player.sendMessage(text);
+  } catch (error) {
+  }
+}
+
+// Resolve which player(s) a coordinate-carrying event belongs to. Prefer the
+// real source player; if the scriptevent did not provide one, fall back to the
+// single closest player to the target coordinates (the owner whose Agent /
+// superagent is there) instead of affecting every player in the world.
+function ownerPlayersForEvent(event, target) {
+  if (isPlayerSource(event.sourceEntity)) {
+    return [event.sourceEntity];
+  }
+  if (target) {
+    const near = closestEntity(world.getPlayers(), target);
+    if (near) {
+      return [near];
+    }
+  }
+  return world.getPlayers();
 }
 
 function ownedSuperagentForEvent(player) {
@@ -1588,25 +1649,39 @@ function handleStop(player) {
 }
 
 // Home is stored on the player, which persists across world reloads.
+// Coordinates come from the MakeCode message; if absent we fall back to the
+// owned superagent's current spot. Home is stored even if no superagent exists
+// yet so the command never fails silently.
 function handleSetHome(player, message) {
-  const owned = ownedSuperagentForEvent(player);
-  if (!owned) {
+  if (!player) {
     return;
   }
+  const owned = ownedSuperagentForEvent(player);
   const messagePosition = parseGoto(message);
-  const source = messagePosition || owned.location;
+  const source = messagePosition || (owned && owned.location);
+  if (!source) {
+    sendFeedback(player, "§eSuperagent: spawn me first, then set home.");
+    return;
+  }
   try {
     player.setDynamicProperty(HOME_X_PROP, source.x);
     player.setDynamicProperty(HOME_Y_PROP, source.y);
     player.setDynamicProperty(HOME_Z_PROP, source.z);
-    playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
+    if (owned) {
+      playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
+    }
+    sendFeedback(player, "§aSuperagent: home set.");
   } catch (error) {
   }
 }
 
 function handleGoHome(player, message) {
+  if (!player) {
+    return;
+  }
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
+    sendFeedback(player, "§eSuperagent: spawn me first to send me home.");
     return;
   }
   const messagePosition = parseGoto(message);
@@ -1614,6 +1689,7 @@ function handleGoHome(player, message) {
   const y = messagePosition ? messagePosition.y : player.getDynamicProperty(HOME_Y_PROP);
   const z = messagePosition ? messagePosition.z : player.getDynamicProperty(HOME_Z_PROP);
   if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") {
+    sendFeedback(player, "§eSuperagent: no home set yet. Use \"set home\" first.");
     return;
   }
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
@@ -1708,6 +1784,94 @@ function handleSpawnAt(player, message) {
   }
 }
 
+// ---- mining (the visible superagent breaks blocks itself) -----------------
+
+// Cardinal block offset the superagent is currently facing.
+function facingBlockOffset(superagent) {
+  const yaw = snapYawToCardinal(entityRotation(superagent).y);
+  if (yaw === 0) return { x: 0, z: 1 };      // south
+  if (yaw === 90 || yaw === -270) return { x: -1, z: 0 };  // west
+  if (yaw === -90 || yaw === 270) return { x: 1, z: 0 };   // east
+  return { x: 0, z: -1 };                     // north (180 / -180)
+}
+
+// Break a single block and drop its items (survival friendly).
+function breakBlockAt(dimension, x, y, z) {
+  runCommandSafe(dimension, `setblock ${x} ${y} ${z} air destroy`);
+}
+
+// Dig a 2-high tunnel ahead of the superagent, then walk it forward through the
+// cleared space (stopping at the first block that could not be removed).
+function mineTunnelForward(owned, count) {
+  const dim = owned.dimension;
+  const off = facingBlockOffset(owned);
+  const bx = Math.floor(owned.location.x);
+  const by = Math.floor(owned.location.y);
+  const bz = Math.floor(owned.location.z);
+  let cx = bx;
+  let cz = bz;
+  for (let i = 1; i <= count; i++) {
+    const nx = bx + off.x * i;
+    const nz = bz + off.z * i;
+    breakBlockAt(dim, nx, by, nz);
+    breakBlockAt(dim, nx, by + 1, nz);
+    if (!blockIsObstacle(dim, nx, by, nz)) {
+      cx = nx;
+      cz = nz;
+    }
+  }
+  try {
+    teleportEntityOpen(owned, { x: cx + 0.5, y: by, z: cz + 0.5 });
+  } catch (error) {
+  }
+}
+
+// Dig straight down beneath the superagent and lower it into the shaft.
+function mineShaftDown(owned, count) {
+  const dim = owned.dimension;
+  const bx = Math.floor(owned.location.x);
+  const by = Math.floor(owned.location.y);
+  const bz = Math.floor(owned.location.z);
+  let depth = 0;
+  for (let i = 1; i <= count; i++) {
+    breakBlockAt(dim, bx, by - i, bz);
+    if (!blockIsObstacle(dim, bx, by - i, bz)) {
+      depth = i;
+    }
+  }
+  try {
+    teleportEntityOpen(owned, { x: bx + 0.5, y: by - depth, z: bz + 0.5 });
+  } catch (error) {
+  }
+}
+
+function handleMine(player, message) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    sendFeedback(player, "§eSuperagent: spawn me first to mine.");
+    return;
+  }
+  const parts = (message || "").trim().split(/\s+/);
+  const mode = (parts[0] || "forward").toLowerCase();
+  let count = Number(parts[1]);
+  if (!Number.isFinite(count)) {
+    count = 1;
+  }
+  count = Math.max(1, Math.min(64, Math.round(count)));
+  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
+  clearNavTarget(owned);
+  clearPath(owned);
+  if (mode === "down") {
+    mineShaftDown(owned, count);
+  } else {
+    // "forward" and "strip" both dig a forward tunnel from the superagent; the
+    // strip variant just reuses the same length (parts[1]).
+    mineTunnelForward(owned, count);
+  }
+  startSpin(owned);
+  playDogSound(owned, "move", { volume: 0.5, pitch: 0.9 });
+}
+
 function isPlayerSource(entity) {
   return entity && entity.typeId === "minecraft:player";
 }
@@ -1780,20 +1944,22 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:sethome") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleSetHome(event.sourceEntity, event.message);
+    const target = parseGoto(event.message);
+    for (const player of ownerPlayersForEvent(event, target)) {
+      handleSetHome(player, event.message);
     }
     return;
   }
   if (event.id === "superagent:gohome") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleGoHome(event.sourceEntity);
+    const target = parseGoto(event.message);
+    for (const player of ownerPlayersForEvent(event, target)) {
+      handleGoHome(player, event.message);
     }
     return;
   }
   if (event.id === "superagent:clearhome") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleClearHome(event.sourceEntity);
+    for (const player of playersForEvent(event)) {
+      handleClearHome(player);
     }
     return;
   }
@@ -1832,20 +1998,34 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:spawnat") {
-    for (const player of playersForEvent(event)) {
+    // Coordinates are the caller's OWN Agent position. Scope strictly to the
+    // owner (source player, or the single closest player to those coordinates)
+    // so one player's spawn/recall never moves another player's superagent.
+    const target = parseGoto(event.message);
+    for (const player of ownerPlayersForEvent(event, target)) {
       handleSpawnAt(player, event.message);
     }
     return;
   }
+  if (event.id === "superagent:mine") {
+    for (const player of playersForEvent(event)) {
+      handleMine(player, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:stopcombat") {
+    handleStopCombat();
+    return;
+  }
   if (event.id === "superagent:step") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleStep(event.sourceEntity, event.message);
+    for (const player of playersForEvent(event)) {
+      handleStep(player, event.message);
     }
     return;
   }
   if (event.id === "superagent:face") {
-    if (isPlayerSource(event.sourceEntity)) {
-      handleFace(event.sourceEntity, event.message);
+    for (const player of playersForEvent(event)) {
+      handleFace(player, event.message);
     }
     return;
   }
@@ -1925,3 +2105,10 @@ system.runInterval(() => {
     }
   }
 }, TICK_RATE);
+
+// Combat is off by default on every fresh world load / script reload so a guard
+// that was left on in an earlier session never "keeps fighting" unexpectedly.
+try {
+  setCombatEnabled(false);
+} catch (combatResetError) {
+}
