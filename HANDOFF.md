@@ -110,8 +110,8 @@ So combat/movement/powers were moved to **scriptevent → BP → script API**, w
 - `scoreboard` / `title` (memory + missions).
 - `agent.*` native (mine, inventory, detect) — Agent's own abilities.
 
-**scriptevent IDs currently handled in `main.js`:** `combat`, `label`, `goto`, `gotoagent`,
-`pathto`, `pathtoagent`, `followwalk`, `stop`, `sethome`, `gohome`, `clearhome`, `addguard`,
+**scriptevent IDs currently handled in `main.js`:** `combat`, `label`, `goto`, `pathto`,
+`followwalk`, `stop`, `sethome`, `gohome`, `clearhome`, `addguard`,
 `clearguards`, `freeze`, `gather`, `reset`, `recall`, `step`, `face`, `burst`, `lightning`,
 `blast`, `shield`, `heal`, `magnet`, `blink`, `ally`.
 
@@ -266,7 +266,7 @@ changes). Importing a same-version pack often won't update — bump the version 
 | 6 | Cross-session memory (scoreboard) + home point + autonomous squad guards |
 | 7 | find-nearest-block, shape library, auto-status, mission/leaderboard |
 | 8 | Agent inventory/fetch, auto-bridge/stair, teacher controls (freeze/gather/reset) |
-| 9 | A\* pathfinding (`pathTo`/`pathToAgent`) — pure module + BP getBlock |
+| 9 | A\* pathfinding (`pathTo`) — pure module + BP getBlock |
 | 10 | 3D blueprint from arrays, copy/paste clone, fill-replace |
 | 11 | Blueprint mirror/rotate; A\* recompute mid-path |
 | 12 | Collision-aware grid move (BP `step`); `ensureCharacter` stops force-teleporting |

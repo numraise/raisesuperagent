@@ -44,7 +44,7 @@
 
 ## Phase 9 — A* pathfinding ✅ (เสร็จ v0.1.21)
 
-- ✅ **A\* pathfinding** — `pathTo(x,y,z)` / `pathToAgent()` เดินอ้อมสิ่งกีดขวาง
+- ✅ **A\* pathfinding** — `pathTo(x,y,z)` เดินอ้อมสิ่งกีดขวาง
   - โมดูล pure `pathfind.js` (A* 6-neighbor, bounded 300 nodes/24 บล็อก) unit test ได้
   - BP สร้าง `isBlocked` จาก `dimension.getBlock` (solid = ไม่ใช่ air/liquid), เก็บ waypoints เป็น JSON ใน dynamic property แล้ว glide ตามทีละจุด
   - ไม่เจอเส้นทาง → fallback เป็น glide ตรง
