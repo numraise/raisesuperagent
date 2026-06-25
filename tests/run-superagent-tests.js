@@ -972,6 +972,20 @@ test("superagent script routes home events with message + owner fallback", () =>
 
 // BUG-002: spawn/recall-at-agent carries explicit own-Agent coordinates and is
 // scoped to the owner, never the whole world.
+// BUG-001: spawn at player must not emit the brittle "execute as @s ..." form,
+// which some Minecraft Education worlds reject with a red "Unexpected '@s'" error.
+test("superagent spawn at player avoids execute-as syntax", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(!source.includes("execute as @s"));
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtPlayer();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("summon superagent:superagent ~ ~ ~")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:recall")));
+  assert(!commands.some((command) => command.includes("execute as")));
+});
+
 test("superagent recall to agent sends explicit own-agent coordinates", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);

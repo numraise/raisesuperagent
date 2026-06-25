@@ -647,7 +647,12 @@ namespace superagent {
     //% group="Control"
     export function spawnAtPlayer() {
         followingAgent = false
-        runAtAgent("execute as @s at @s run summon superagent:superagent ~ ~ ~")
+        // Summon directly at the Agent (where runAtAgent is positioned). We avoid
+        // the nested execute-run form because some Minecraft Education worlds parse
+        // the older execute syntax and reject it with a red "Unexpected '@s'" chat
+        // error. The behavior pack then claims this entity and recalls it onto the
+        // player (and removes any duplicates) via the scriptevent below.
+        runAtAgent("summon superagent:superagent ~ ~ ~")
         runAtAgent("scriptevent superagent:recall")
     }
 
