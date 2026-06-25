@@ -767,7 +767,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.66 script active");
+      player.sendMessage("superagent 0.1.67 script active");
     }
   } catch (error) {
   }
@@ -1786,13 +1786,29 @@ function handleSpawnAt(player, message) {
 
 // ---- mining (the visible superagent breaks blocks itself) -----------------
 
-// Cardinal block offset the superagent is currently facing.
-function facingBlockOffset(superagent) {
-  const yaw = snapYawToCardinal(entityRotation(superagent).y);
-  if (yaw === 0) return { x: 0, z: 1 };      // south
-  if (yaw === 90 || yaw === -270) return { x: -1, z: 0 };  // west
-  if (yaw === -90 || yaw === 270) return { x: 1, z: 0 };   // east
-  return { x: 0, z: -1 };                     // north (180 / -180)
+// Horizontal cardinal offset the PLAYER is currently looking toward. Mining
+// "forward" follows the player's view so the direction is always predictable,
+// instead of depending on whichever way the character happens to be turned.
+function playerForwardOffset(player) {
+  let dir;
+  try {
+    dir = player.getViewDirection();
+  } catch (error) {
+  }
+  if (!dir) {
+    return { x: 0, z: -1 };
+  }
+  if (Math.abs(dir.x) >= Math.abs(dir.z)) {
+    return { x: dir.x >= 0 ? 1 : -1, z: 0 };
+  }
+  return { x: 0, z: dir.z >= 0 ? 1 : -1 };
+}
+
+function cardinalRotationFromOffset(off) {
+  if (off.x > 0) return { x: 0, y: -90 }; // east
+  if (off.x < 0) return { x: 0, y: 90 };  // west
+  if (off.z > 0) return { x: 0, y: 0 };   // south
+  return { x: 0, y: 180 };                // north
 }
 
 // Break a single block and drop its items (survival friendly).
@@ -1800,49 +1816,33 @@ function breakBlockAt(dimension, x, y, z) {
   runCommandSafe(dimension, `setblock ${x} ${y} ${z} air destroy`);
 }
 
-// Dig a 2-high tunnel ahead of the superagent, then walk it forward through the
-// cleared space (stopping at the first block that could not be removed).
-function mineTunnelForward(owned, count) {
-  const dim = owned.dimension;
-  const off = facingBlockOffset(owned);
-  const bx = Math.floor(owned.location.x);
-  const by = Math.floor(owned.location.y);
-  const bz = Math.floor(owned.location.z);
-  let cx = bx;
-  let cz = bz;
-  for (let i = 1; i <= count; i++) {
-    const nx = bx + off.x * i;
-    const nz = bz + off.z * i;
-    breakBlockAt(dim, nx, by, nz);
-    breakBlockAt(dim, nx, by + 1, nz);
-    if (!blockIsObstacle(dim, nx, by, nz)) {
-      cx = nx;
-      cz = nz;
-    }
+// Move the character to an EXACT spot facing a direction. We deliberately do not
+// search for a nearby "open" location (that caused erratic jumps while blocks
+// were still being cleared) — the travel distance must equal the requested count.
+function placeMiner(owned, location, rotation) {
+  try {
+    owned.teleport(location, { rotation: rotation });
+    return;
+  } catch (error) {
   }
   try {
-    teleportEntityOpen(owned, { x: cx + 0.5, y: by, z: cz + 0.5 });
+    owned.teleport(location);
   } catch (error) {
   }
 }
 
-// Dig straight down beneath the superagent and lower it into the shaft.
-function mineShaftDown(owned, count) {
-  const dim = owned.dimension;
-  const bx = Math.floor(owned.location.x);
-  const by = Math.floor(owned.location.y);
-  const bz = Math.floor(owned.location.z);
-  let depth = 0;
-  for (let i = 1; i <= count; i++) {
-    breakBlockAt(dim, bx, by - i, bz);
-    if (!blockIsObstacle(dim, bx, by - i, bz)) {
-      depth = i;
-    }
-  }
+// The break commands resolve asynchronously, so move the character a few ticks
+// later once the tunnel/shaft is actually clear.
+function scheduleMinerMove(owned, location, rotation) {
+  const move = () => placeMiner(owned, location, rotation);
   try {
-    teleportEntityOpen(owned, { x: bx + 0.5, y: by - depth, z: bz + 0.5 });
+    if (system && typeof system.runTimeout === "function") {
+      system.runTimeout(move, 4);
+      return;
+    }
   } catch (error) {
   }
+  move();
 }
 
 function handleMine(player, message) {
@@ -1861,14 +1861,35 @@ function handleMine(player, message) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearNavTarget(owned);
   clearPath(owned);
+
+  const dim = owned.dimension;
+  const bx = Math.floor(owned.location.x);
+  const by = Math.floor(owned.location.y);
+  const bz = Math.floor(owned.location.z);
+
+  let destination;
+  let rotation;
   if (mode === "down") {
-    mineShaftDown(owned, count);
+    // Dig straight down exactly `count` blocks and lower the character `count`.
+    for (let i = 1; i <= count; i++) {
+      breakBlockAt(dim, bx, by - i, bz);
+    }
+    destination = { x: bx + 0.5, y: by - count, z: bz + 0.5 };
+    rotation = entityRotation(owned);
   } else {
-    // "forward" and "strip" both dig a forward tunnel from the superagent; the
-    // strip variant just reuses the same length (parts[1]).
-    mineTunnelForward(owned, count);
+    // "forward" and "strip" dig a 2-high tunnel along the player's view for
+    // exactly `count` blocks, then advance the character `count` blocks.
+    const off = playerForwardOffset(player);
+    for (let i = 1; i <= count; i++) {
+      breakBlockAt(dim, bx + off.x * i, by, bz + off.z * i);
+      breakBlockAt(dim, bx + off.x * i, by + 1, bz + off.z * i);
+    }
+    destination = { x: bx + off.x * count + 0.5, y: by, z: bz + off.z * count + 0.5 };
+    rotation = cardinalRotationFromOffset(off);
+    setGridAlignedRotation(owned, rotation);
   }
-  startSpin(owned);
+
+  scheduleMinerMove(owned, destination, rotation);
   playDogSound(owned, "move", { volume: 0.5, pitch: 0.9 });
 }
 

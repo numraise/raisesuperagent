@@ -1002,13 +1002,21 @@ test("superagent script scopes spawnat to the owning player", () => {
 });
 
 // BUG-005: the visible superagent breaks blocks itself (BP-side), no Agent.
-test("superagent script mines blocks at the superagent position", () => {
+// The dig direction follows the player's view (predictable) and the travel
+// distance always equals the requested count (no random direction/amount).
+test("superagent script mines deterministically along the player's view", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function handleMine"));
   assert(script.includes('event.id === "superagent:mine"'));
-  assert(script.includes("function mineTunnelForward"));
-  assert(script.includes("function mineShaftDown"));
+  assert(script.includes("function playerForwardOffset"));
+  assert(script.includes("player.getViewDirection()"));
   assert(script.includes("air destroy"));
+  // Forward travel is exactly `count` blocks (geometric, not collision-stopped).
+  assert(script.includes("off.x * count"));
+  assert(script.includes("by - count"));
+  // The mover does not search for a nearby open spot (that caused random jumps).
+  assert(script.includes("function placeMiner"));
+  assert(!/function mineTunnelForward/.test(script));
 });
 
 // BUG-007: turning the guard off (or stop combat) clears the flag + visuals and
