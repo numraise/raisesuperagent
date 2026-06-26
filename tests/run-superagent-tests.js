@@ -972,18 +972,30 @@ test("superagent script routes home events with message + owner fallback", () =>
 
 // BUG-002: spawn/recall-at-agent carries explicit own-Agent coordinates and is
 // scoped to the owner, never the whole world.
-// BUG-001: spawn at player must not emit the brittle "execute as @s ..." form,
-// which some Minecraft Education worlds reject with a red "Unexpected '@s'" error.
-test("superagent spawn at player avoids execute-as syntax", () => {
+// BUG-001/BUG-002: spawn at player must not emit the brittle "execute as @s ..."
+// form (red "Unexpected '@s'" in some worlds) and must not raw-summon (which lets
+// the BP claim ownership by proximity in multiplayer). Only the scriptevent.
+test("superagent spawn at player uses only a scriptevent (no execute-as, no summon)", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
   assert(!source.includes("execute as @s"));
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.spawnAtPlayer();
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("summon superagent:superagent ~ ~ ~")));
   assert(commands.some((command) => command.includes("scriptevent superagent:recall")));
   assert(!commands.some((command) => command.includes("execute as")));
+  assert(!commands.some((command) => command.includes("summon superagent")));
+});
+
+// BUG-002: spawn at agent sends explicit own-Agent coordinates and must NOT raw
+// summon (ownership would then be decided by proximity, not by the caller).
+test("superagent spawn at agent sends coordinates without a raw summon", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtAgent();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:spawnat 10 20 30")));
+  assert(!commands.some((command) => command.includes("summon superagent")));
 });
 
 test("superagent recall to agent sends explicit own-agent coordinates", () => {
@@ -994,11 +1006,16 @@ test("superagent recall to agent sends explicit own-agent coordinates", () => {
   assert(commands.some((command) => command.includes("scriptevent superagent:spawnat 10 20 30")));
 });
 
-test("superagent script scopes spawnat to the owning player", () => {
+test("superagent script scopes spawnat to a single owner (never all players)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes('event.id === "superagent:spawnat"'));
-  // spawnat resolves an owner; it must not iterate all players unconditionally.
-  assert(script.includes("ownerPlayersForEvent(event, target)"));
+  // spawnat resolves ONE owner via resolveSingleOwner, which returns [] (no-op)
+  // when the owner cannot be determined instead of moving every player's char.
+  assert(script.includes("function resolveSingleOwner"));
+  assert(/resolveSingleOwner\(event, target\)[\s\S]{0,120}handleSpawnAt/.test(script));
+  // resolveSingleOwner must not fall back to world.getPlayers()
+  const fn = script.match(/function resolveSingleOwner[\s\S]*?\n}/)[0];
+  assert(!fn.includes("world.getPlayers()") || /return \[\];/.test(fn));
 });
 
 // BUG-005: the visible superagent breaks blocks itself (BP-side), no Agent.

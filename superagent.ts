@@ -636,7 +636,11 @@ namespace superagent {
         followingAgent = false
         let target = agent.getPosition()
         setSuperagentPosition(target)
-        runAtAgent("summon superagent:superagent " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
+        // Send only the scriptevent (no raw "summon"). The behavior pack creates
+        // and OWNS the character for the player who ran this command, then moves
+        // it to these explicit own-Agent coordinates. A raw summon would let the
+        // BP claim ownership by proximity, which in multiplayer can attach the
+        // character to whichever player happens to stand closest to the Agent.
         runAtAgent("scriptevent superagent:spawnat " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
     }
 
@@ -647,12 +651,11 @@ namespace superagent {
     //% group="Control"
     export function spawnAtPlayer() {
         followingAgent = false
-        // Summon directly at the Agent (where runAtAgent is positioned). We avoid
-        // the nested execute-run form because some Minecraft Education worlds parse
-        // the older execute syntax and reject it with a red "Unexpected '@s'" chat
-        // error. The behavior pack then claims this entity and recalls it onto the
-        // player (and removes any duplicates) via the scriptevent below.
-        runAtAgent("summon superagent:superagent ~ ~ ~")
+        // Send only the scriptevent. The behavior pack creates and OWNS the
+        // character for the player who ran this command and places it on that
+        // player. We avoid a raw "summon" (and the older nested execute-run form
+        // that some Minecraft Education worlds reject with a red "Unexpected '@s'"
+        // error) so ownership is never decided by proximity in multiplayer.
         runAtAgent("scriptevent superagent:recall")
     }
 

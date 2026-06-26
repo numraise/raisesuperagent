@@ -767,7 +767,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.67 script active");
+      player.sendMessage("superagent 0.1.68 script active");
     }
   } catch (error) {
   }
@@ -1404,6 +1404,24 @@ function ownerPlayersForEvent(event, target) {
   return world.getPlayers();
 }
 
+// Strict owner resolution for coordinate-bearing commands that act on ONE
+// player's character (spawn/recall to agent). Prefer the real source player;
+// otherwise the single closest player to the target (the owner whose Agent is
+// there). If neither can be determined, return NO players — never fall back to
+// the whole world, or one player's command would drag every player's character.
+function resolveSingleOwner(event, target) {
+  if (isPlayerSource(event.sourceEntity)) {
+    return [event.sourceEntity];
+  }
+  if (target) {
+    const near = closestEntity(world.getPlayers(), target);
+    if (near) {
+      return [near];
+    }
+  }
+  return [];
+}
+
 function ownedSuperagentForEvent(player) {
   return closestEntity(findOwnedSuperagents(player), player.location);
 }
@@ -2023,7 +2041,7 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     // owner (source player, or the single closest player to those coordinates)
     // so one player's spawn/recall never moves another player's superagent.
     const target = parseGoto(event.message);
-    for (const player of ownerPlayersForEvent(event, target)) {
+    for (const player of resolveSingleOwner(event, target)) {
       handleSpawnAt(player, event.message);
     }
     return;
