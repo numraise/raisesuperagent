@@ -1003,12 +1003,19 @@ test("superagent spawn/recall at agent send a coordinate-free per-player event",
   assert(!commands.some((command) => command.includes("summon superagent")));
 });
 
-test("superagent script resolves each caller's own agent server-side", () => {
+test("superagent spawn/recall place each player's character at their own spot", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes('event.id === "superagent:spawnatagent"'));
-  assert(script.includes("function findPlayerAgent"));
-  // Per-player: iterate players and resolve each one's own agent, then place.
-  assert(/superagent:spawnatagent[\s\S]*?for \(const player of playersForEvent\(event\)\)[\s\S]*?findPlayerAgent\(player\)[\s\S]*?placeOwnedSuperagentAt\(player, target\)/.test(script));
+  assert(script.includes('event.id === "superagent:recall"'));
+  // Both route through the per-player own-location placer (no host-shared agent,
+  // no trusting the event source which is the host command runner).
+  assert(script.includes("function bringEachPlayersSuperagentHome"));
+  const fn = script.match(/function bringEachPlayersSuperagentHome[\s\S]*?\n}/)[0];
+  assert(fn.includes("world.getPlayers()"));
+  assert(fn.includes("placeOwnedSuperagentAt(player"));
+  // spawnatagent and recall both call it.
+  assert(/superagent:spawnatagent[\s\S]{0,500}bringEachPlayersSuperagentHome\(\)/.test(script));
+  assert(/superagent:recall[\s\S]{0,500}bringEachPlayersSuperagentHome\(\)/.test(script));
 });
 
 test("superagent script scopes spawnat to a single owner (never all players)", () => {
@@ -1106,12 +1113,14 @@ test("superagent debug report and duplicate cleanup exist", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function handleDebug"));
   assert(script.includes('event.id === "superagent:debug"'));
-  assert(script.includes("function cleanupDuplicateSuperagents"));
-  assert(script.includes("cleanupDuplicateSuperagents(system.currentTick)"));
-  // cleanup keeps another player's character safe (only removes when no other
-  // player is nearby)
-  const fn = script.match(/function cleanupDuplicateSuperagents[\s\S]*?\n}/)[0];
-  assert(fn.includes("otherPlayerNear"));
+  // Hard one-per-connected-player rule runs periodically.
+  assert(script.includes("function enforceSuperagentLimits"));
+  assert(script.includes("enforceSuperagentLimits(system.currentTick)"));
+  const fn = script.match(/function enforceSuperagentLimits[\s\S]*?\n}\n/)[0];
+  // Keeps each connected player's nearest character; removes everything else
+  // (unowned strays + characters owned by a non-connected identity like kru_game).
+  assert(fn.includes("ownerToPlayer"));
+  assert(fn.includes("removeEntitySafe(entity)"));
 });
 
 test("superagent stop combat block clears combat", () => {
@@ -1367,8 +1376,8 @@ test("superagent egg claim is gated to a player right next to it, and dedupes", 
   // only ones tagged as theirs — never another player's character.
   assert(egg.includes("if (other.hasTag(tag))"));
   assert(egg.includes("removeEntitySafe(other)"));
-  // Periodic self-heal also removes a player's owned duplicates.
-  assert(script.includes("function cleanupDuplicateSuperagents"));
+  // Periodic enforcement keeps exactly one character per connected player.
+  assert(script.includes("function enforceSuperagentLimits"));
 });
 
 test("superagent auto-combat is teacher-toggleable and off by default", () => {

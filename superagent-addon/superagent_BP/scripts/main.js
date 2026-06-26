@@ -807,7 +807,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.75 script active");
+      player.sendMessage("superagent 0.1.76 script active");
     }
   } catch (error) {
   }
@@ -1477,32 +1477,82 @@ function handleDebug(player) {
   }
 }
 
-// Periodic self-heal: a player should own at most one (non-guard) character.
-// Remove a player's duplicate owned characters (keep the one nearest them) when
-// no OTHER player is standing near the duplicate, so piles can never accumulate
-// while a character another player is using is never touched.
-function cleanupDuplicateSuperagents(tick) {
-  if (tick % 40 !== 0) {
+// Hard rule: exactly ONE character per CONNECTED player. Runs periodically and
+// (a) keeps only each connected player's nearest character, (b) removes every
+// other character — duplicates, unowned eggs, and characters owned by an
+// identity that is not a connected player (e.g. the MakeCode command runner
+// "kru_game"). This is what guarantees no army, no pile, no phantom owners.
+function enforceSuperagentLimits(tick) {
+  if (tick % 20 !== 0) {
     return;
   }
   const players = world.getPlayers();
-  for (const player of players) {
-    const owned = findOwnedSuperagentsInDimension(player).filter((entity) => !entity.hasTag(GUARD_TAG));
-    if (owned.length <= 1) {
+  if (players.length === 0) {
+    return;
+  }
+  const ownerToPlayer = {};
+  for (const p of players) {
+    ownerToPlayer[ownerTag(p)] = p;
+  }
+  const handledDimensions = {};
+  for (const anchor of players) {
+    const dim = anchor.dimension;
+    if (handledDimensions[dim.id]) {
       continue;
     }
-    const keep = closestEntity(owned, player.location);
-    for (const entity of owned) {
-      if (!entity || !keep || entity.id === keep.id) {
+    handledDimensions[dim.id] = true;
+    let all = [];
+    try {
+      all = dim.getEntities({ type: SUPER_AGENT_ID });
+    } catch (error) {
+      continue;
+    }
+    const groups = {};
+    for (const entity of all) {
+      if (entity.hasTag(GUARD_TAG)) {
         continue;
       }
-      const otherPlayerNear = players.some(
-        (p) => p.id !== player.id && p.dimension === entity.dimension && distanceSquared(p.location, entity.location) <= 36
-      );
-      if (!otherPlayerNear) {
+      let ownerTagValue = null;
+      try {
+        for (const t of entity.getTags()) {
+          if (t.indexOf(OWNER_TAG_PREFIX) === 0) {
+            ownerTagValue = t;
+            break;
+          }
+        }
+      } catch (error) {
+      }
+      if (ownerTagValue && ownerToPlayer[ownerTagValue]) {
+        (groups[ownerTagValue] = groups[ownerTagValue] || []).push(entity);
+      } else {
+        // Unowned (stray egg) OR owned by a non-connected identity → remove.
         removeEntitySafe(entity);
       }
     }
+    for (const ownerKey in groups) {
+      const list = groups[ownerKey];
+      const ownerPlayer = ownerToPlayer[ownerKey];
+      const keep = closestEntity(list, ownerPlayer.location);
+      for (const entity of list) {
+        if (keep && entity.id !== keep.id) {
+          removeEntitySafe(entity);
+        }
+      }
+    }
+  }
+}
+
+// Place EACH connected player's single character at that player's own location.
+// Whoever triggered the command, every player's character goes to THEIR OWN
+// spot, so characters never pile on one player's (or the host's) Agent. This
+// sidesteps MakeCode's host-shared agent.getPosition() entirely.
+function bringEachPlayersSuperagentHome() {
+  for (const player of world.getPlayers()) {
+    placeOwnedSuperagentAt(player, {
+      x: player.location.x,
+      y: player.location.y,
+      z: player.location.z
+    });
   }
 }
 
@@ -2221,9 +2271,9 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:recall") {
-    for (const player of playersForEvent(event)) {
-      handleRecall(player);
-    }
+    // Spawn at player: same reliable per-player placement as spawn/recall at
+    // agent — each connected player's character goes to their own location.
+    bringEachPlayersSuperagentHome();
     return;
   }
   if (event.id === "superagent:spawnat") {
@@ -2237,18 +2287,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:spawnatagent") {
-    // Resolve EACH calling player's OWN Agent server-side. This fixes the
-    // multiplayer pile-up: MakeCode's agent.getPosition() returns the host's
-    // shared Agent, so coordinates from MakeCode are unreliable. Using
-    // playersForEvent + per-player findPlayerAgent keeps every player's character
-    // on their own Agent.
-    for (const player of playersForEvent(event)) {
-      const agentEntity = findPlayerAgent(player);
-      const target = agentEntity
-        ? { x: Math.floor(agentEntity.location.x) + 0.5, y: agentEntity.location.y, z: Math.floor(agentEntity.location.z) + 0.5 }
-        : { x: player.location.x, y: player.location.y, z: player.location.z };
-      placeOwnedSuperagentAt(player, target);
-    }
+    // Every connected player's character goes to THEIR OWN location. We do not
+    // trust the event source (MakeCode runs host-side, so the source is often
+    // the command runner "kru_game", not the typing player) and we do not use
+    // agent coordinates from MakeCode (host-shared). Per-player own-location
+    // placement makes piling impossible.
+    bringEachPlayersSuperagentHome();
     return;
   }
   if (event.id === "superagent:mine") {
@@ -2359,7 +2403,7 @@ system.runInterval(() => {
     }
   }
   try {
-    cleanupDuplicateSuperagents(system.currentTick);
+    enforceSuperagentLimits(system.currentTick);
   } catch (error) {
   }
 }, TICK_RATE);
