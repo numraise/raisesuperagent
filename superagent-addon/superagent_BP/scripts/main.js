@@ -533,18 +533,45 @@ function transportSuperagentToEgg(spawned) {
   if (!spawned || spawned.typeId !== SUPER_AGENT_ID) {
     return;
   }
-  // IMPORTANT: do NOT claim ownership here. Assigning an owner by proximity is
-  // what attached another player's character to the wrong player when students
-  // stood close together (and when an older extension raw-summoned). Ownership
-  // is assigned ONLY by the owner-resolved spawn/recall handler, or by the tight
-  // tick adoption below for an egg placed right next to a player. Leave the new
-  // character UNOWNED here and just give it its base look.
   if (isOwnedByAnyone(spawned)) {
     return;
   }
+  const player = nearestPlayerTo(spawned);
+  // Only claim a character that appears RIGHT NEXT TO a player (an egg placed at
+  // their feet). A character that appears far from every player is left unowned
+  // for the owner-resolved spawn/recall handler — we never proximity-claim from
+  // afar, which is what mis-assigned characters to the wrong player before.
+  if (!player || distanceSquared(player.location, spawned.location) > 9) {
+    snapEntityToGridAlignment(spawned, true);
+    clearMovementState(spawned);
+    applyLabel(spawned);
+    return;
+  }
+  configureSuperagent(spawned, player);
   snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
-  applyLabel(spawned);
+  playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
+  // Keep ONE character per player: remove this player's other characters nearby
+  // (so placing several eggs does not pile up an "army"). Only this player's own
+  // copies are removed; another player's character is never touched.
+  const tag = ownerTag(player);
+  let nearby = [];
+  try {
+    nearby = spawned.dimension.getEntities({
+      type: SUPER_AGENT_ID,
+      location: spawned.location,
+      maxDistance: 16
+    });
+  } catch (error) {
+  }
+  for (const other of nearby) {
+    if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
+      continue;
+    }
+    if (other.hasTag(tag)) {
+      removeEntitySafe(other);
+    }
+  }
 }
 
 // Adopt an UNOWNED character sitting right next to a player who owns none yet
@@ -780,7 +807,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.73 script active");
+      player.sendMessage("superagent 0.1.74 script active");
     }
   } catch (error) {
   }

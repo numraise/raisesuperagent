@@ -1346,25 +1346,24 @@ test("superagent script keeps one owner-scoped character and does not self-match
   assert(script.includes('typeId.endsWith(":agent")'));
 });
 
-// Ownership is NEVER assigned by proximity on spawn. An egg-spawned character is
-// left unowned and only adopted by the player standing right next to it (and who
-// owns none yet) — so a spawn can never attach to / move another player's char.
-test("superagent egg-spawned character is adopted, not proximity-claimed", () => {
+// An egg placed at a player's feet is claimed for THAT player and dedupes their
+// other characters (no "army"). A character that appears far from every player
+// is left unowned — never proximity-claimed from afar (multiplayer safety).
+test("superagent egg claim is gated to a player right next to it, and dedupes", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function transportSuperagentToEgg"));
   assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
   assert(script.includes("transportSuperagentToEgg(event.entity)"));
-  // transportSuperagentToEgg must NOT claim ownership (no configureSuperagent /
-  // nearestPlayerTo inside it).
   const egg = script.match(/function transportSuperagentToEgg[\s\S]*?\n}/)[0];
-  assert(!egg.includes("configureSuperagent"));
-  assert(!egg.includes("nearestPlayerTo"));
-  // Adoption is tight (4 blocks), unowned-only, and only when the player owns none.
-  assert(script.includes("function adoptNearbyUnownedSuperagent"));
-  const adopt = script.match(/function adoptNearbyUnownedSuperagent[\s\S]*?\n}/)[0];
-  assert(adopt.includes("maxDistance: 4"));
-  assert(adopt.includes("!isOwnedByAnyone(entity)"));
-  assert(/if \(!ownedSuperagent\) \{\s*\n\s*ownedSuperagent = adoptNearbyUnownedSuperagent\(player\);/.test(script));
+  // Claim only when a player is within ~3 blocks (distanceSquared <= 9).
+  assert(egg.includes("distanceSquared(player.location, spawned.location) > 9"));
+  assert(egg.includes("configureSuperagent(spawned, player)"));
+  // Dedupe the placing player's other characters (kills the egg "army"), but
+  // only ones tagged as theirs — never another player's character.
+  assert(egg.includes("if (other.hasTag(tag))"));
+  assert(egg.includes("removeEntitySafe(other)"));
+  // Periodic self-heal also removes a player's owned duplicates.
+  assert(script.includes("function cleanupDuplicateSuperagents"));
 });
 
 test("superagent auto-combat is teacher-toggleable and off by default", () => {
