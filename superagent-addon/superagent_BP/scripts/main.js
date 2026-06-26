@@ -533,37 +533,41 @@ function transportSuperagentToEgg(spawned) {
   if (!spawned || spawned.typeId !== SUPER_AGENT_ID) {
     return;
   }
-  // Only claim a brand-new, unowned character. Never re-claim one that already
-  // belongs to a player (that is how another player's character used to get
-  // stolen by proximity when students spawned close together).
+  // IMPORTANT: do NOT claim ownership here. Assigning an owner by proximity is
+  // what attached another player's character to the wrong player when students
+  // stood close together (and when an older extension raw-summoned). Ownership
+  // is assigned ONLY by the owner-resolved spawn/recall handler, or by the tight
+  // tick adoption below for an egg placed right next to a player. Leave the new
+  // character UNOWNED here and just give it its base look.
   if (isOwnedByAnyone(spawned)) {
     return;
   }
-  const player = nearestPlayerTo(spawned);
-  if (!player) {
-    return;
-  }
-  configureSuperagent(spawned, player);
   snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
-  playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
-  // Dedupe ONLY near the new character (not across the whole world), and only
-  // this player's own copies — so a mis-placed spawn can never delete another
-  // player's character somewhere else.
-  const tag = ownerTag(player);
-  const nearby = spawned.dimension.getEntities({
-    type: SUPER_AGENT_ID,
-    location: spawned.location,
-    maxDistance: 8
-  });
-  for (const other of nearby) {
-    if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
-      continue;
-    }
-    if (other.hasTag(tag)) {
-      removeEntitySafe(other);
-    }
+  applyLabel(spawned);
+}
+
+// Adopt an UNOWNED character sitting right next to a player who owns none yet
+// (e.g. one placed from a spawn egg). Tight radius + unowned-only so it can
+// never grab a character that belongs to, or is being used by, another player.
+function adoptNearbyUnownedSuperagent(player) {
+  let candidates = [];
+  try {
+    candidates = player.dimension.getEntities({
+      type: SUPER_AGENT_ID,
+      location: player.location,
+      maxDistance: 4
+    }).filter((entity) => !entity.hasTag(GUARD_TAG) && !isOwnedByAnyone(entity));
+  } catch (error) {
+    return undefined;
   }
+  const target = closestEntity(candidates, player.location);
+  if (target) {
+    configureSuperagent(target, player);
+    playDogSound(target, "ready", { volume: 0.6, pitch: 1.1 });
+    return target;
+  }
+  return undefined;
 }
 
 function isAttackTarget(entity) {
@@ -776,7 +780,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.71 script active");
+      player.sendMessage("superagent 0.1.72 script active");
     }
   } catch (error) {
   }
@@ -1287,7 +1291,10 @@ function tickGuards(player, tick) {
 function tickPlayer(player, tick) {
   announceReady(player);
   cleanupLegacyVisibleMarkers(player, player.location);
-  const ownedSuperagent = closestEntity(findOwnedSuperagentsInDimension(player), player.location);
+  let ownedSuperagent = closestEntity(findOwnedSuperagentsInDimension(player), player.location);
+  if (!ownedSuperagent) {
+    ownedSuperagent = adoptNearbyUnownedSuperagent(player);
+  }
   if (ownedSuperagent) {
     tickSuperagent(player, ownedSuperagent, tick);
   }
