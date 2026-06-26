@@ -447,13 +447,32 @@ function applyLabel(superagent) {
   superagent.nameTag = (typeof label === "string" && label.length > 0) ? label : DISPLAY_NAME;
 }
 
+// Give this character exactly ONE owner tag (strip any stale owner tags first).
+// Without this, re-claiming accumulated multiple owner tags on one entity, which
+// made ownership/dedupe ambiguous.
+function setSingleOwnerTag(entity, player) {
+  const desired = ownerTag(player);
+  try {
+    for (const t of entity.getTags()) {
+      if (t.indexOf(OWNER_TAG_PREFIX) === 0 && t !== desired) {
+        entity.removeTag(t);
+      }
+    }
+  } catch (error) {
+  }
+  try {
+    entity.addTag(desired);
+  } catch (error) {
+  }
+}
+
 function configureSuperagent(superagent, player) {
   if (!superagent) {
     return;
   }
   applyLabel(superagent);
   superagent.addTag(ROOT_TAG);
-  superagent.addTag(ownerTag(player));
+  setSingleOwnerTag(superagent, player);
   snapEntityToGridAlignment(superagent);
   addEffectSafe(superagent, "resistance", 200, {
     amplifier: 255,
@@ -807,7 +826,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.76 script active");
+      player.sendMessage("superagent 0.1.77 script active");
     }
   } catch (error) {
   }
@@ -1542,19 +1561,6 @@ function enforceSuperagentLimits(tick) {
   }
 }
 
-// Place EACH connected player's single character at that player's own location.
-// Whoever triggered the command, every player's character goes to THEIR OWN
-// spot, so characters never pile on one player's (or the host's) Agent. This
-// sidesteps MakeCode's host-shared agent.getPosition() entirely.
-function bringEachPlayersSuperagentHome() {
-  for (const player of world.getPlayers()) {
-    placeOwnedSuperagentAt(player, {
-      x: player.location.x,
-      y: player.location.y,
-      z: player.location.z
-    });
-  }
-}
 
 // Send a short on-screen message to the player so commands never fail silently.
 function sendFeedback(player, text) {
@@ -2271,9 +2277,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:recall") {
-    // Spawn at player: same reliable per-player placement as spawn/recall at
-    // agent — each connected player's character goes to their own location.
-    bringEachPlayersSuperagentHome();
+    // Spawn at player: place ONLY the typing player's character at their own
+    // location (same per-player rule as spawn/recall at agent).
+    const p = event.sourceEntity;
+    if (isPlayerSource(p)) {
+      placeOwnedSuperagentAt(p, { x: p.location.x, y: p.location.y, z: p.location.z });
+    }
     return;
   }
   if (event.id === "superagent:spawnat") {
@@ -2287,12 +2296,15 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     return;
   }
   if (event.id === "superagent:spawnatagent") {
-    // Every connected player's character goes to THEIR OWN location. We do not
-    // trust the event source (MakeCode runs host-side, so the source is often
-    // the command runner "kru_game", not the typing player) and we do not use
-    // agent coordinates from MakeCode (host-shared). Per-player own-location
-    // placement makes piling impossible.
-    bringEachPlayersSuperagentHome();
+    // Place ONLY the player who typed the command, at THEIR OWN location. The
+    // scriptevent source IS the typing player (verified via the debug report's
+    // "you="), so we use it directly. We must NOT iterate world.getPlayers()
+    // (that includes the host "kru_game", which would get a character too) and
+    // we must NOT use MakeCode agent coords (host-shared in multiplayer).
+    const p = event.sourceEntity;
+    if (isPlayerSource(p)) {
+      placeOwnedSuperagentAt(p, { x: p.location.x, y: p.location.y, z: p.location.z });
+    }
     return;
   }
   if (event.id === "superagent:mine") {

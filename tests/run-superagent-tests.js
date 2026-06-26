@@ -1003,19 +1003,18 @@ test("superagent spawn/recall at agent send a coordinate-free per-player event",
   assert(!commands.some((command) => command.includes("summon superagent")));
 });
 
-test("superagent spawn/recall place each player's character at their own spot", () => {
+test("superagent spawn/recall place ONLY the typing player at their own spot", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes('event.id === "superagent:spawnatagent"'));
   assert(script.includes('event.id === "superagent:recall"'));
-  // Both route through the per-player own-location placer (no host-shared agent,
-  // no trusting the event source which is the host command runner).
-  assert(script.includes("function bringEachPlayersSuperagentHome"));
-  const fn = script.match(/function bringEachPlayersSuperagentHome[\s\S]*?\n}/)[0];
-  assert(fn.includes("world.getPlayers()"));
-  assert(fn.includes("placeOwnedSuperagentAt(player"));
-  // spawnatagent and recall both call it.
-  assert(/superagent:spawnatagent[\s\S]{0,500}bringEachPlayersSuperagentHome\(\)/.test(script));
-  assert(/superagent:recall[\s\S]{0,500}bringEachPlayersSuperagentHome\(\)/.test(script));
+  // Use the scriptevent source (the typing player), NOT world.getPlayers() (that
+  // includes the host "kru_game") and NOT MakeCode agent coords (host-shared).
+  assert(!script.includes("function bringEachPlayersSuperagentHome"));
+  assert(/superagent:spawnatagent[\s\S]{0,700}const p = event\.sourceEntity;[\s\S]{0,200}placeOwnedSuperagentAt\(p,/.test(script));
+  assert(/superagent:recall[\s\S]{0,400}const p = event\.sourceEntity;[\s\S]{0,200}placeOwnedSuperagentAt\(p,/.test(script));
+  // Single-owner tagging prevents stale multi-owner tags accumulating.
+  assert(script.includes("function setSingleOwnerTag"));
+  assert(script.includes("setSingleOwnerTag(superagent, player)"));
 });
 
 test("superagent script scopes spawnat to a single owner (never all players)", () => {
