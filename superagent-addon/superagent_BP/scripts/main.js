@@ -776,7 +776,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.69 script active");
+      player.sendMessage("superagent 0.1.70 script active");
     }
   } catch (error) {
   }
@@ -1788,6 +1788,10 @@ function handleReset(player) {
 function placeOwnedSuperagentAt(player, target) {
   const dim = player.dimension;
   const tag = ownerTag(player);
+  // Look ONLY within a tight radius of the target. We never reach out to a
+  // character far away (which is how another player's character used to get
+  // dragged in when its owner tag had been corrupted by an older proximity
+  // claim). A character at another player's Agent is simply out of range here.
   const near = dim.getEntities({
     type: SUPER_AGENT_ID,
     location: target,
@@ -1795,12 +1799,10 @@ function placeOwnedSuperagentAt(player, target) {
   }).filter((entity) => !entity.hasTag(GUARD_TAG));
 
   // 1) this player's own character already here, else 2) an unowned one sitting
-  // here (e.g. summoned by an older extension), else 3) reuse this player's own
-  // character from elsewhere, else 4) spawn a fresh one.
+  // here (e.g. summoned by an older extension), else 3) spawn a fresh one.
   let superagent =
     closestEntity(near.filter((entity) => entity.hasTag(tag)), target) ||
-    closestEntity(near.filter((entity) => !isOwnedByAnyone(entity)), target) ||
-    closestEntity(findOwnedSuperagentsInDimension(player), target);
+    closestEntity(near.filter((entity) => !isOwnedByAnyone(entity)), target);
   if (!superagent) {
     try {
       superagent = dim.spawnEntity(SUPER_AGENT_ID, target);
@@ -1821,11 +1823,34 @@ function placeOwnedSuperagentAt(player, target) {
     }
   }
 
+  // Clean up this player's leftover characters elsewhere (so spawn/recall does
+  // not pile up duplicates) — but ONLY ones that no player is standing near, so
+  // we can never delete or disturb a character another player is actively using.
+  removeStrayOwnedSuperagents(player, superagent);
+
   clearMovementState(superagent);
   try {
     teleportEntityOpen(superagent, target);
     playDogSound(superagent, "ready", { volume: 0.6, pitch: 1.1 });
   } catch (error) {
+  }
+}
+
+// Remove this player's owned characters that are far from the target and have no
+// player nearby. Used to clear strays without ever touching a character that
+// belongs to / is being used by another player.
+function removeStrayOwnedSuperagents(player, keep) {
+  const tag = ownerTag(player);
+  for (const other of findOwnedSuperagentsInDimension(player)) {
+    if (!other || other.id === keep.id || other.hasTag(GUARD_TAG)) {
+      continue;
+    }
+    const someoneNear = world.getPlayers().some(
+      (p) => p.dimension === other.dimension && distanceSquared(p.location, other.location) <= 64
+    );
+    if (!someoneNear) {
+      removeEntitySafe(other);
+    }
   }
 }
 

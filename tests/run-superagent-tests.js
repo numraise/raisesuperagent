@@ -1032,6 +1032,13 @@ test("superagent spawn/recall act only on characters at the target", () => {
   assert(fn.includes("maxDistance: 8"));
   // It only ever removes this player's own or unowned characters, never others'.
   assert(fn.includes("if (other.hasTag(tag) || !isOwnedByAnyone(other))"));
+  // Selection must NOT reach out to a far-away character (no dimension-wide fetch
+  // in the character-selection expression) — that was the residual leak.
+  assert(!fn.includes("findOwnedSuperagentsInDimension(player), target"));
+  // Stray cleanup only removes characters that NO player is standing near.
+  assert(script.includes("function removeStrayOwnedSuperagents"));
+  const stray = script.match(/function removeStrayOwnedSuperagents[\s\S]*?\n}/)[0];
+  assert(stray.includes("someoneNear") && /if \(!someoneNear\)/.test(stray));
 });
 
 // BUG-005: the visible superagent breaks blocks itself (BP-side), no Agent.
