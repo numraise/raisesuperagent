@@ -1089,6 +1089,26 @@ test("superagent remove all purges characters via the script API", () => {
   assert(script.includes("removeEntitySafe(entity)"));
 });
 
+// Diagnostics + self-healing dedupe so piles of characters can never accumulate.
+test("superagent debug report and duplicate cleanup exist", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(source.includes('blockId=superagent_debug block="superagent debug report"'));
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.debugReport();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:debug")));
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handleDebug"));
+  assert(script.includes('event.id === "superagent:debug"'));
+  assert(script.includes("function cleanupDuplicateSuperagents"));
+  assert(script.includes("cleanupDuplicateSuperagents(system.currentTick)"));
+  // cleanup keeps another player's character safe (only removes when no other
+  // player is nearby)
+  const fn = script.match(/function cleanupDuplicateSuperagents[\s\S]*?\n}/)[0];
+  assert(fn.includes("otherPlayerNear"));
+});
+
 test("superagent stop combat block clears combat", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);

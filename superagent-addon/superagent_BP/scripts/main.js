@@ -780,7 +780,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.72 script active");
+      player.sendMessage("superagent 0.1.73 script active");
     }
   } catch (error) {
   }
@@ -1416,6 +1416,66 @@ function handlePurge() {
   }
   for (const player of world.getPlayers()) {
     sendFeedback(player, "§aSuperagent: removed " + removed + " character(s). Clean slate.");
+  }
+}
+
+function ownerNameOfEntity(entity) {
+  try {
+    for (const t of entity.getTags()) {
+      if (t.indexOf(OWNER_TAG_PREFIX) === 0) {
+        return t.slice(OWNER_TAG_PREFIX.length);
+      }
+    }
+  } catch (error) {
+  }
+  return "unowned";
+}
+
+// Diagnostics: report every superagent character in the player's dimension with
+// its owner and position, so multiplayer ownership problems can be inspected.
+function handleDebug(player) {
+  let all = [];
+  try {
+    all = player.dimension.getEntities({ type: SUPER_AGENT_ID });
+  } catch (error) {
+  }
+  sendFeedback(player, "§e[superagent debug] count=" + all.length + " (you=" + (player.name || "?") + ")");
+  for (const entity of all) {
+    const guard = entity.hasTag(GUARD_TAG) ? " §c[guard]§7" : "";
+    sendFeedback(
+      player,
+      "§7- owner=" + ownerNameOfEntity(entity) + guard + " @ " +
+      Math.floor(entity.location.x) + "," + Math.floor(entity.location.y) + "," + Math.floor(entity.location.z)
+    );
+  }
+}
+
+// Periodic self-heal: a player should own at most one (non-guard) character.
+// Remove a player's duplicate owned characters (keep the one nearest them) when
+// no OTHER player is standing near the duplicate, so piles can never accumulate
+// while a character another player is using is never touched.
+function cleanupDuplicateSuperagents(tick) {
+  if (tick % 40 !== 0) {
+    return;
+  }
+  const players = world.getPlayers();
+  for (const player of players) {
+    const owned = findOwnedSuperagentsInDimension(player).filter((entity) => !entity.hasTag(GUARD_TAG));
+    if (owned.length <= 1) {
+      continue;
+    }
+    const keep = closestEntity(owned, player.location);
+    for (const entity of owned) {
+      if (!entity || !keep || entity.id === keep.id) {
+        continue;
+      }
+      const otherPlayerNear = players.some(
+        (p) => p.id !== player.id && p.dimension === entity.dimension && distanceSquared(p.location, entity.location) <= 36
+      );
+      if (!otherPlayerNear) {
+        removeEntitySafe(entity);
+      }
+    }
   }
 }
 
@@ -2163,6 +2223,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     handlePurge();
     return;
   }
+  if (event.id === "superagent:debug") {
+    for (const player of playersForEvent(event)) {
+      handleDebug(player);
+    }
+    return;
+  }
   if (event.id === "superagent:step") {
     for (const player of playersForEvent(event)) {
       handleStep(player, event.message);
@@ -2249,6 +2315,10 @@ system.runInterval(() => {
       tickPlayer(player, system.currentTick);
     } catch (error) {
     }
+  }
+  try {
+    cleanupDuplicateSuperagents(system.currentTick);
+  } catch (error) {
   }
 }, TICK_RATE);
 

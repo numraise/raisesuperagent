@@ -2005,6 +2005,16 @@ namespace superagent {
         runAtAgent("scriptevent superagent:purge")
     }
 
+    /**
+     * Diagnostics: print how many superagent characters exist, their owner, and
+     * position to the chat. Useful for understanding multiplayer ownership.
+     */
+    //% blockId=superagent_debug block="superagent debug report"
+    //% group="Control"
+    export function debugReport() {
+        runAtAgent("scriptevent superagent:debug")
+    }
+
     function isFilledCell(cell: string): boolean {
         return cell == "X" || cell == "x" || cell == "#" || cell == "1"
     }
