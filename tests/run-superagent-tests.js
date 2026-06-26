@@ -1072,6 +1072,23 @@ test("superagent script stops combat reliably and resets on load", () => {
   assert(/Combat is off by default[\s\S]*setCombatEnabled\(false\);/.test(script));
 });
 
+// Cleanup tool that works even when a command add-on (RaiseUAC) rewrites
+// "/kill @e[type=...]" selectors: the BP removes characters via the script API.
+test("superagent remove all purges characters via the script API", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(source.includes('blockId=superagent_remove_all block="superagent remove all characters"'));
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.removeAll();
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:purge")));
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handlePurge"));
+  assert(script.includes('event.id === "superagent:purge"'));
+  assert(script.includes("getEntities({ type: SUPER_AGENT_ID })"));
+  assert(script.includes("removeEntitySafe(entity)"));
+});
+
 test("superagent stop combat block clears combat", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);

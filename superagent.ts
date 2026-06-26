@@ -1994,6 +1994,17 @@ namespace superagent {
         runAtAgent("scriptevent superagent:reset")
     }
 
+    /**
+     * Teacher control: remove EVERY superagent character in the world (clean slate).
+     * The behavior pack deletes them with the scripting API, so this works even when
+     * command add-ons (e.g. RaiseUAC) rewrite "/kill @e[type=...]" selectors.
+     */
+    //% blockId=superagent_remove_all block="superagent remove all characters"
+    //% group="Control"
+    export function removeAll() {
+        runAtAgent("scriptevent superagent:purge")
+    }
+
     function isFilledCell(cell: string): boolean {
         return cell == "X" || cell == "x" || cell == "#" || cell == "1"
     }

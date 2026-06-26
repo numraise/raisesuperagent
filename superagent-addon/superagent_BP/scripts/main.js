@@ -776,7 +776,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.70 script active");
+      player.sendMessage("superagent 0.1.71 script active");
     }
   } catch (error) {
   }
@@ -1383,6 +1383,33 @@ function handleStopCombat() {
     removeGuards(player);
   }
   clearAllCombatVisuals();
+}
+
+// Teacher cleanup: remove EVERY superagent character (and guards) in every
+// player's dimension using the scripting API. This bypasses command add-ons
+// such as RaiseUAC that rewrite "/kill @e[type=...]" selectors and break them.
+function handlePurge() {
+  const seen = {};
+  let removed = 0;
+  for (const player of world.getPlayers()) {
+    const dim = player.dimension;
+    if (seen[dim.id]) {
+      continue;
+    }
+    seen[dim.id] = true;
+    let entities = [];
+    try {
+      entities = dim.getEntities({ type: SUPER_AGENT_ID });
+    } catch (error) {
+    }
+    for (const entity of entities) {
+      removeEntitySafe(entity);
+      removed++;
+    }
+  }
+  for (const player of world.getPlayers()) {
+    sendFeedback(player, "§aSuperagent: removed " + removed + " character(s). Clean slate.");
+  }
 }
 
 // Send a short on-screen message to the player so commands never fail silently.
@@ -2123,6 +2150,10 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   }
   if (event.id === "superagent:stopcombat") {
     handleStopCombat();
+    return;
+  }
+  if (event.id === "superagent:purge") {
+    handlePurge();
     return;
   }
   if (event.id === "superagent:step") {
