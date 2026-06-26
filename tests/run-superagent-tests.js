@@ -987,23 +987,28 @@ test("superagent spawn at player uses only a scriptevent (no execute-as, no summ
   assert(!commands.some((command) => command.includes("summon superagent")));
 });
 
-// BUG-002: spawn at agent sends explicit own-Agent coordinates and must NOT raw
-// summon (ownership would then be decided by proximity, not by the caller).
-test("superagent spawn at agent sends coordinates without a raw summon", () => {
+// BUG-002 (root cause): MakeCode's agent.getPosition() returns the HOST's shared
+// Agent in Education multiplayer, so spawn/recall-at-agent must NOT send agent
+// coordinates from MakeCode. They send a coordinate-free event and the behavior
+// pack resolves each calling player's OWN Agent server-side.
+test("superagent spawn/recall at agent send a coordinate-free per-player event", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
   toolkit.spawnAtAgent();
+  toolkit.recallToAgent();
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("scriptevent superagent:spawnat 10 20 30")));
+  assert(commands.filter((command) => command.includes("scriptevent superagent:spawnatagent")).length >= 2);
+  // Must NOT leak host-shared agent coordinates or raw summons.
+  assert(!commands.some((command) => command.includes("scriptevent superagent:spawnat ")));
   assert(!commands.some((command) => command.includes("summon superagent")));
 });
 
-test("superagent recall to agent sends explicit own-agent coordinates", () => {
-  const agent = createMockAgent();
-  const toolkit = loadSuperagent(agent);
-  toolkit.recallToAgent();
-  const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("scriptevent superagent:spawnat 10 20 30")));
+test("superagent script resolves each caller's own agent server-side", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes('event.id === "superagent:spawnatagent"'));
+  assert(script.includes("function findPlayerAgent"));
+  // Per-player: iterate players and resolve each one's own agent, then place.
+  assert(/superagent:spawnatagent[\s\S]*?for \(const player of playersForEvent\(event\)\)[\s\S]*?findPlayerAgent\(player\)[\s\S]*?placeOwnedSuperagentAt\(player, target\)/.test(script));
 });
 
 test("superagent script scopes spawnat to a single owner (never all players)", () => {

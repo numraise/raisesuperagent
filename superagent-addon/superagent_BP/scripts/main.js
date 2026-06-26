@@ -807,7 +807,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.74 script active");
+      player.sendMessage("superagent 0.1.75 script active");
     }
   } catch (error) {
   }
@@ -2233,6 +2233,21 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     const target = parseGoto(event.message);
     for (const player of resolveSingleOwner(event, target)) {
       handleSpawnAt(player, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:spawnatagent") {
+    // Resolve EACH calling player's OWN Agent server-side. This fixes the
+    // multiplayer pile-up: MakeCode's agent.getPosition() returns the host's
+    // shared Agent, so coordinates from MakeCode are unreliable. Using
+    // playersForEvent + per-player findPlayerAgent keeps every player's character
+    // on their own Agent.
+    for (const player of playersForEvent(event)) {
+      const agentEntity = findPlayerAgent(player);
+      const target = agentEntity
+        ? { x: Math.floor(agentEntity.location.x) + 0.5, y: agentEntity.location.y, z: Math.floor(agentEntity.location.z) + 0.5 }
+        : { x: player.location.x, y: player.location.y, z: player.location.z };
+      placeOwnedSuperagentAt(player, target);
     }
     return;
   }

@@ -634,14 +634,13 @@ namespace superagent {
     //% group="Control"
     export function spawnAtAgent() {
         followingAgent = false
-        let target = agent.getPosition()
-        setSuperagentPosition(target)
-        // Send only the scriptevent (no raw "summon"). The behavior pack creates
-        // and OWNS the character for the player who ran this command, then moves
-        // it to these explicit own-Agent coordinates. A raw summon would let the
-        // BP claim ownership by proximity, which in multiplayer can attach the
-        // character to whichever player happens to stand closest to the Agent.
-        runAtAgent("scriptevent superagent:spawnat " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
+        setSuperagentPosition(agent.getPosition())
+        // Do NOT send agent coordinates from MakeCode: in Minecraft Education
+        // multiplayer, agent.getPosition() resolves to the host's shared Agent, so
+        // every player's "spawn at agent" would send the SAME coordinates and all
+        // characters would pile on the host's Agent. Instead the behavior pack
+        // finds the CALLING player's own Agent server-side and spawns there.
+        runAtAgent("scriptevent superagent:spawnatagent")
     }
 
     /**
@@ -665,12 +664,12 @@ namespace superagent {
     //% blockId=superagent_recall_to_agent block="superagent recall to agent"
     //% group="Control"
     export function recallToAgent() {
-        // Read THIS player's own Agent position and send explicit coordinates so
-        // the behavior pack never has to guess/scan for an Agent. In multiplayer
-        // this keeps the recall scoped to the caller's own superagent + Agent.
-        let target = agent.getPosition()
-        setSuperagentPosition(target)
-        runAtAgent("scriptevent superagent:spawnat " + target.getValue(Axis.X) + " " + target.getValue(Axis.Y) + " " + target.getValue(Axis.Z))
+        // Same as spawn at agent: let the behavior pack resolve the CALLING
+        // player's own Agent server-side. agent.getPosition() here would be the
+        // host's shared Agent in multiplayer, which is the cause of every
+        // player's character piling onto one Agent.
+        setSuperagentPosition(agent.getPosition())
+        runAtAgent("scriptevent superagent:spawnatagent")
     }
 
     /**
