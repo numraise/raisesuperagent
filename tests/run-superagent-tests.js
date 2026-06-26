@@ -1018,6 +1018,22 @@ test("superagent script scopes spawnat to a single owner (never all players)", (
   assert(!fn.includes("world.getPlayers()") || /return \[\];/.test(fn));
 });
 
+// BUG-002 (definitive): spawn/recall to agent only act on characters AT the
+// target location, so one player's command can never move another player's
+// character across the world — even if ownership tags were corrupted earlier.
+test("superagent spawn/recall act only on characters at the target", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function placeOwnedSuperagentAt"));
+  // handleSpawnAt and handleRecall both route through the target-local placer.
+  assert(/function handleSpawnAt[\s\S]*?placeOwnedSuperagentAt\(player, target\)/.test(script));
+  assert(/function handleRecall[\s\S]*?placeOwnedSuperagentAt\(player, \{/.test(script));
+  // The placer searches a TIGHT radius around the target (not 128 blocks).
+  const fn = script.match(/function placeOwnedSuperagentAt[\s\S]*?\n}/)[0];
+  assert(fn.includes("maxDistance: 8"));
+  // It only ever removes this player's own or unowned characters, never others'.
+  assert(fn.includes("if (other.hasTag(tag) || !isOwnedByAnyone(other))"));
+});
+
 // BUG-005: the visible superagent breaks blocks itself (BP-side), no Agent.
 // The dig direction follows the player's view (predictable) and the travel
 // distance always equals the requested count (no random direction/amount).
@@ -1295,7 +1311,8 @@ test("superagent spawn egg transports the owned character instead of leaving dup
   assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
   assert(script.includes("transportSuperagentToEgg(event.entity)"));
   assert(script.includes("configureSuperagent(spawned, player)"));
-  assert(script.includes("for (const other of allDimensionSuperagents(player))"));
+  // egg claim only takes a brand-new unowned character (never steals an owned one)
+  assert(/function transportSuperagentToEgg[\s\S]*?if \(isOwnedByAnyone\(spawned\)\) \{\s*\n\s*return;/.test(script));
   assert(script.includes("if (other.hasTag(tag))"));
   assert(script.includes("removeEntitySafe(other)"));
   assert(!script.includes("removeEntitySafe(spawned)"));

@@ -533,21 +533,30 @@ function transportSuperagentToEgg(spawned) {
   if (!spawned || spawned.typeId !== SUPER_AGENT_ID) {
     return;
   }
+  // Only claim a brand-new, unowned character. Never re-claim one that already
+  // belongs to a player (that is how another player's character used to get
+  // stolen by proximity when students spawned close together).
+  if (isOwnedByAnyone(spawned)) {
+    return;
+  }
   const player = nearestPlayerTo(spawned);
   if (!player) {
     return;
   }
-  const target = {
-    x: spawned.location.x,
-    y: spawned.location.y,
-    z: spawned.location.z
-  };
   configureSuperagent(spawned, player);
   snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
   playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
+  // Dedupe ONLY near the new character (not across the whole world), and only
+  // this player's own copies — so a mis-placed spawn can never delete another
+  // player's character somewhere else.
   const tag = ownerTag(player);
-  for (const other of allDimensionSuperagents(player)) {
+  const nearby = spawned.dimension.getEntities({
+    type: SUPER_AGENT_ID,
+    location: spawned.location,
+    maxDistance: 8
+  });
+  for (const other of nearby) {
     if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
       continue;
     }
@@ -767,7 +776,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.68 script active");
+      player.sendMessage("superagent 0.1.69 script active");
     }
   } catch (error) {
   }
@@ -1771,18 +1780,62 @@ function handleReset(player) {
   handleClearHome(player);
 }
 
-// Bring the player's character to the player's own position.
-function handleRecall(player) {
-  const owned = ensureOwnedSuperagent(player);
-  if (!owned) {
-    return;
+// Place/keep exactly ONE character for this player AT the given target. We only
+// look at characters NEAR the target (this player's Agent or position), so one
+// player's spawn/recall can never drag another player's character across the
+// world, regardless of how ownership tags were set. Another player's owned
+// character is never claimed, moved, or removed.
+function placeOwnedSuperagentAt(player, target) {
+  const dim = player.dimension;
+  const tag = ownerTag(player);
+  const near = dim.getEntities({
+    type: SUPER_AGENT_ID,
+    location: target,
+    maxDistance: 8
+  }).filter((entity) => !entity.hasTag(GUARD_TAG));
+
+  // 1) this player's own character already here, else 2) an unowned one sitting
+  // here (e.g. summoned by an older extension), else 3) reuse this player's own
+  // character from elsewhere, else 4) spawn a fresh one.
+  let superagent =
+    closestEntity(near.filter((entity) => entity.hasTag(tag)), target) ||
+    closestEntity(near.filter((entity) => !isOwnedByAnyone(entity)), target) ||
+    closestEntity(findOwnedSuperagentsInDimension(player), target);
+  if (!superagent) {
+    try {
+      superagent = dim.spawnEntity(SUPER_AGENT_ID, target);
+    } catch (error) {
+      return;
+    }
   }
-  clearMovementState(owned);
+  configureSuperagent(superagent, player);
+
+  // Dedupe ONLY at the target: remove this player's extra characters / unowned
+  // leftovers piled here. Never remove another player's owned character.
+  for (const other of near) {
+    if (other.id === superagent.id || other.hasTag(GUARD_TAG)) {
+      continue;
+    }
+    if (other.hasTag(tag) || !isOwnedByAnyone(other)) {
+      removeEntitySafe(other);
+    }
+  }
+
+  clearMovementState(superagent);
   try {
-    teleportEntityOpen(owned, { x: player.location.x, y: player.location.y, z: player.location.z });
-    playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
+    teleportEntityOpen(superagent, target);
+    playDogSound(superagent, "ready", { volume: 0.6, pitch: 1.1 });
   } catch (error) {
   }
+}
+
+// Bring the player's character to the player's own position.
+function handleRecall(player) {
+  placeOwnedSuperagentAt(player, {
+    x: player.location.x,
+    y: player.location.y,
+    z: player.location.z
+  });
 }
 
 function handleSpawnAt(player, message) {
@@ -1790,16 +1843,7 @@ function handleSpawnAt(player, message) {
   if (!target) {
     return;
   }
-  const owned = ensureOwnedSuperagent(player);
-  if (!owned) {
-    return;
-  }
-  clearMovementState(owned);
-  try {
-    teleportEntityOpen(owned, target);
-    playDogSound(owned, "ready", { volume: 0.6, pitch: 1.1 });
-  } catch (error) {
-  }
+  placeOwnedSuperagentAt(player, target);
 }
 
 // ---- mining (the visible superagent breaks blocks itself) -----------------
