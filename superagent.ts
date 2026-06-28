@@ -1686,11 +1686,11 @@ namespace superagent {
     //% group="Memory"
     export function setHome() {
         ensureCharacter()
-        homeX = trackedX
-        homeY = trackedY
-        homeZ = trackedZ
         homePositionSet = true
-        runAtAgent("scriptevent superagent:sethome " + homeX + " " + homeY + " " + homeZ)
+        // Do NOT send tracked coordinates: they drift from the real entity when
+        // the character is spawned/moved server-side. The behavior pack stores
+        // the REAL superagent's current position as home.
+        runAtAgent("scriptevent superagent:sethome")
     }
 
     /**
@@ -1701,12 +1701,7 @@ namespace superagent {
     export function goHome() {
         followingAgent = false
         ensureCharacter()
-        if (homePositionSet) {
-            superagentPosition = pos(homeX, homeY, homeZ)
-            setTrackedPosition(homeX, homeY, homeZ)
-            runAtAgent("scriptevent superagent:gohome " + homeX + " " + homeY + " " + homeZ)
-            return
-        }
+        // The behavior pack navigates the REAL entity to the home it stored.
         runAtAgent("scriptevent superagent:gohome")
     }
 

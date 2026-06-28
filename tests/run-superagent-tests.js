@@ -611,8 +611,12 @@ test("superagent home and squad blocks emit the right scriptevents", () => {
   toolkit.summonGuard();
   toolkit.dismissGuards();
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("scriptevent superagent:sethome 10 20 30")));
-  assert(commands.some((command) => command.includes("scriptevent superagent:gohome 10 20 30")));
+  // set/go home send NO coordinates — the behavior pack stores/uses the REAL
+  // entity position (tracked MakeCode coords drift from the real character).
+  assert(commands.some((command) => command.includes("scriptevent superagent:sethome")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:gohome")));
+  assert(!commands.some((command) => /scriptevent superagent:sethome \d/.test(command)));
+  assert(!commands.some((command) => /scriptevent superagent:gohome \d/.test(command)));
   assert(commands.some((command) => command.includes("scriptevent superagent:clearhome")));
   assert(commands.some((command) => command.includes("scriptevent superagent:addguard")));
   assert(commands.some((command) => command.includes("scriptevent superagent:clearguards")));
