@@ -1003,6 +1003,17 @@ test("superagent spawn/recall at agent send a coordinate-free per-player event",
   assert(!commands.some((command) => command.includes("summon superagent")));
 });
 
+// The multiplayer-fragile blocks are hidden from the toolbox (Agent is shared
+// with the host in Education), while "spawn at player" stays as the reliable one.
+test("superagent hides spawn/recall at agent blocks, keeps spawn at player", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(!source.includes("blockId=superagent_spawn_at_agent"));
+  assert(!source.includes("blockId=superagent_recall_to_agent"));
+  assert(!source.includes('block="superagent spawn at agent"'));
+  assert(!source.includes('block="superagent recall to agent"'));
+  assert(source.includes('blockId=superagent_spawn_at_player block="superagent spawn at player"'));
+});
+
 test("superagent spawn/recall place ONLY the typing player at their own spot", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   // All three events route to the single caller-at-self placer.

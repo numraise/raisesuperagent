@@ -628,10 +628,11 @@ namespace superagent {
     }
 
     /**
-     * Spawn the visible one-block superagent character at the Agent.
+     * HIDDEN from the toolbox: "spawn at agent" cannot work reliably in Minecraft
+     * Education multiplayer because MakeCode's Agent is shared with the host, so
+     * every player's call resolves to the same Agent. Use "spawn at player"
+     * instead. Function kept (not exposed as a block) for compatibility/tests.
      */
-    //% blockId=superagent_spawn_at_agent block="superagent spawn at agent"
-    //% group="Control"
     export function spawnAtAgent() {
         followingAgent = false
         setSuperagentPosition(agent.getPosition())
@@ -659,10 +660,10 @@ namespace superagent {
     }
 
     /**
-     * Recall the visible superagent character back to the Agent.
+     * HIDDEN from the toolbox: "recall to agent" has the same multiplayer Agent
+     * limitation as "spawn at agent" (the Agent is host-shared). Use "spawn at
+     * player" instead. Function kept (not exposed as a block) for compatibility.
      */
-    //% blockId=superagent_recall_to_agent block="superagent recall to agent"
-    //% group="Control"
     export function recallToAgent() {
         // Same as spawn at agent: let the behavior pack resolve the CALLING
         // player's own Agent server-side. agent.getPosition() here would be the
