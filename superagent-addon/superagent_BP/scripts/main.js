@@ -826,7 +826,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.81 script active");
+      player.sendMessage("superagent 0.1.82 script active");
     }
   } catch (error) {
   }
@@ -2161,11 +2161,13 @@ function handleMine(player, message) {
   }
   const parts = (message || "").trim().split(/\s+/);
   const mode = (parts[0] || "forward").toLowerCase();
-  let count = Number(parts[1]);
-  if (!Number.isFinite(count)) {
-    count = 1;
-  }
-  count = Math.max(1, Math.min(64, Math.round(count)));
+  const clampN = (v, min, max, def) => {
+    let n = Number(v);
+    if (!Number.isFinite(n)) {
+      n = def;
+    }
+    return Math.max(min, Math.min(max, Math.round(n)));
+  };
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearNavTarget(owned);
   clearPath(owned);
@@ -2174,30 +2176,47 @@ function handleMine(player, message) {
   const bx = Math.floor(owned.location.x);
   const by = Math.floor(owned.location.y);
   const bz = Math.floor(owned.location.z);
-
+  const off = playerForwardOffset(player);
+  const rotation = cardinalRotationFromOffset(off);
   let destination;
-  let rotation;
+
   if (mode === "down") {
-    // Dig straight down exactly `count` blocks and lower the character `count`.
+    const count = clampN(parts[1], 1, 64, 1);
     for (let i = 1; i <= count; i++) {
       breakBlockAt(dim, bx, by - i, bz);
     }
     destination = { x: bx + 0.5, y: by - count, z: bz + 0.5 };
-    rotation = entityRotation(owned);
+  } else if (mode === "strip") {
+    // strip <length> <tunnels> <gap>: dig `tunnels` parallel 2-high forward
+    // tunnels, each `length` long, separated sideways by `gap` solid blocks.
+    const length = clampN(parts[1], 1, 64, 1);
+    const tunnels = clampN(parts[2], 1, 8, 1);
+    const gap = clampN(parts[3], 1, 4, 1);
+    const lateral = { x: -off.z, z: off.x }; // 90° from forward
+    const step = gap + 1;
+    for (let t = 0; t < tunnels; t++) {
+      const ox = bx + lateral.x * t * step;
+      const oz = bz + lateral.z * t * step;
+      for (let i = 1; i <= length; i++) {
+        breakBlockAt(dim, ox + off.x * i, by, oz + off.z * i);
+        breakBlockAt(dim, ox + off.x * i, by + 1, oz + off.z * i);
+      }
+    }
+    // End at the far end of the FIRST tunnel.
+    destination = { x: bx + off.x * length + 0.5, y: by, z: bz + off.z * length + 0.5 };
+    setGridAlignedRotation(owned, rotation);
   } else {
-    // "forward" and "strip" dig a 2-high tunnel along the player's view for
-    // exactly `count` blocks, then advance the character `count` blocks.
-    const off = playerForwardOffset(player);
+    // forward <count>: one 2-high tunnel `count` long, then advance.
+    const count = clampN(parts[1], 1, 64, 1);
     for (let i = 1; i <= count; i++) {
       breakBlockAt(dim, bx + off.x * i, by, bz + off.z * i);
       breakBlockAt(dim, bx + off.x * i, by + 1, bz + off.z * i);
     }
     destination = { x: bx + off.x * count + 0.5, y: by, z: bz + off.z * count + 0.5 };
-    rotation = cardinalRotationFromOffset(off);
     setGridAlignedRotation(owned, rotation);
   }
 
-  scheduleMinerMove(owned, destination, rotation);
+  scheduleMinerMove(owned, destination, mode === "down" ? entityRotation(owned) : rotation);
   playDogSound(owned, "move", { volume: 0.5, pitch: 0.9 });
 }
 

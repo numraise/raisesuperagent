@@ -1103,6 +1103,12 @@ test("superagent script mines deterministically along the player's view", () => 
   // The mover does not search for a nearby open spot (that caused random jumps).
   assert(script.includes("function placeMiner"));
   assert(!/function mineTunnelForward/.test(script));
+  // strip mine digs `tunnels` parallel tunnels separated sideways by `gap`.
+  const mine = script.match(/function handleMine[\s\S]*?\n}/)[0];
+  assert(mine.includes('mode === "strip"'));
+  assert(mine.includes("lateral"));
+  assert(mine.includes("gap"));
+  assert(mine.includes("tunnels"));
 });
 
 // BUG-007: turning the guard off (or stop combat) clears the flag + visuals and
