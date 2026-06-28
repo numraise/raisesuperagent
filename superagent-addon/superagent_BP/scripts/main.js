@@ -826,7 +826,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.80 script active");
+      player.sendMessage("superagent 0.1.81 script active");
     }
   } catch (error) {
   }
@@ -2092,6 +2092,34 @@ function scheduleMinerMove(owned, location, rotation) {
   move();
 }
 
+// Run a build command (fill/setblock/clone with "~" relative coordinates) AS the
+// real superagent entity, so "~" is relative to the visible character — not a
+// stale MakeCode tracked position. This is what keeps builds centered on the
+// superagent instead of the player/Agent.
+function handleBuild(player, message) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    sendFeedback(player, "§eSuperagent: spawn me first to build.");
+    return;
+  }
+  const cmd = (message || "").trim();
+  if (!cmd) {
+    return;
+  }
+  try {
+    if (typeof owned.runCommand === "function") {
+      owned.runCommand(cmd);
+      return;
+    }
+  } catch (error) {
+  }
+  // Fallback: run at the entity's block position via the dimension.
+  const sx = Math.floor(owned.location.x);
+  const sy = Math.floor(owned.location.y);
+  const sz = Math.floor(owned.location.z);
+  runCommandSafe(owned.dimension, `execute positioned ${sx} ${sy} ${sz} run ${cmd}`);
+}
+
 // Clear a box of air centered (horizontally) on the REAL superagent entity, from
 // its feet upward. Runs at the actual entity so it works regardless of how the
 // character was spawned.
@@ -2313,6 +2341,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id === "superagent:clear") {
     for (const player of playersForEvent(event)) {
       handleClear(player, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:build") {
+    for (const player of playersForEvent(event)) {
+      handleBuild(player, event.message);
     }
     return;
   }

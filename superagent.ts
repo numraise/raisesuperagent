@@ -219,7 +219,12 @@ namespace superagent {
 
     function runBuildAtSuperagent(command: string): boolean {
         ensureCharacter()
-        return runAtSuperagent(command)
+        // Build at the REAL superagent entity (behavior-pack side). The command
+        // uses "~" relative coordinates; the behavior pack runs it AS the visible
+        // superagent so "~" is relative to the character itself. Running from
+        // MakeCode used a tracked position that drifts from the real entity (so
+        // builds appeared around the player/Agent instead of the character).
+        return runAtAgent("scriptevent superagent:build " + command)
     }
 
     function textValue(value: any): string {

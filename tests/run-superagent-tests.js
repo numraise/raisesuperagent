@@ -656,7 +656,22 @@ test("superagent shape library emits geometry build commands", () => {
   assert(commands.some((command) => command.includes("fill ~1 ~1 ~1 ~1 ~1 ~1 stone")));
   assert(commands.some((command) => command.includes("setblock ~2 ~2 ~ stone")));
   assert(commands.some((command) => command.includes("setblock ~2 ~ ~0 stone")));
-  assert(commands.some((command) => command.startsWith("fill ~-2 ~ ~-")));
+  assert(commands.some((command) => command.includes("fill ~-2 ~ ~-")));
+  // Build commands route through the behavior pack so they run at the REAL
+  // superagent entity (fixes builds appearing around the player/Agent).
+  assert(commands.every((command) => !command.includes("fill") || command.includes("scriptevent superagent:build fill")));
+});
+
+test("superagent build runs as the real superagent entity (BP-side)", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.buildDisc(1, 1); // glass radius 1
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:build ")));
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handleBuild"));
+  assert(script.includes('event.id === "superagent:build"'));
+  assert(/handleBuild[\s\S]*?owned\.runCommand\(cmd\)/.test(script));
 });
 
 test("superagent mission mode tracks score and shows a leaderboard", () => {
