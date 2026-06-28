@@ -570,26 +570,15 @@ function transportSuperagentToEgg(spawned) {
   snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
   playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
-  // Keep ONE character per player: remove this player's other characters nearby
-  // (so placing several eggs does not pile up an "army"). Only this player's own
-  // copies are removed; another player's character is never touched.
-  const tag = ownerTag(player);
-  let nearby = [];
-  try {
-    nearby = spawned.dimension.getEntities({
-      type: SUPER_AGENT_ID,
-      location: spawned.location,
-      maxDistance: 16
-    });
-  } catch (error) {
-  }
-  for (const other of nearby) {
+  // Keep ONE character per player: a new egg REPLACES the player's previous
+  // character. Remove this player's other characters across the whole (loaded)
+  // dimension — not just nearby — so a new egg never leaves the old one behind.
+  // Only this player's own copies are removed; another player's is never touched.
+  for (const other of findOwnedSuperagentsInDimension(player)) {
     if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
       continue;
     }
-    if (other.hasTag(tag)) {
-      removeEntitySafe(other);
-    }
+    removeEntitySafe(other);
   }
 }
 
@@ -826,7 +815,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.83 script active");
+      player.sendMessage("superagent 0.1.84 script active");
     }
   } catch (error) {
   }
@@ -1878,9 +1867,15 @@ function handleGoHome(player, message) {
     sendFeedback(player, "§eSuperagent: no home set yet. Use \"set home\" first.");
     return;
   }
-  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
-  setNavTarget(owned, { x, y, z });
-  playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
+  // Teleport straight home. Gliding (setNavTarget) stops at the first wall along
+  // the straight line, so "go home" often failed when anything blocked the path.
+  // A direct teleport always gets the character home reliably.
+  clearMovementState(owned);
+  try {
+    teleportEntityOpen(owned, { x, y, z });
+    playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
+  } catch (error) {
+  }
 }
 
 function handleClearHome(player) {

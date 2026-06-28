@@ -1416,9 +1416,9 @@ test("superagent egg claim is gated to a player right next to it, and dedupes", 
   // Claim only when a player is within ~3 blocks (distanceSquared <= 9).
   assert(egg.includes("distanceSquared(player.location, spawned.location) > 9"));
   assert(egg.includes("configureSuperagent(spawned, player)"));
-  // Dedupe the placing player's other characters (kills the egg "army"), but
-  // only ones tagged as theirs — never another player's character.
-  assert(egg.includes("if (other.hasTag(tag))"));
+  // A new egg REPLACES the player's previous character: remove their other
+  // characters across the whole dimension (not just nearby) so none are left.
+  assert(egg.includes("findOwnedSuperagentsInDimension(player)"));
   assert(egg.includes("removeEntitySafe(other)"));
   // Periodic enforcement keeps exactly one character per connected player.
   assert(script.includes("function enforceSuperagentLimits"));
