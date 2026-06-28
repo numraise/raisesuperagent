@@ -544,7 +544,6 @@ test("superagent build blocks emit fill and setblock commands", () => {
   toolkit.buildFloor(2, 4, 4);
   toolkit.buildPillar(4, 6);
   const placed = toolkit.buildRowPattern(0, "X.X#");
-  toolkit.clearArea(2, 2, 2);
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("fill ~ ~ ~ ~2 ~2 ~2 stone")));
   assert(commands.some((command) => command.includes("fill ~ ~ ~ ~4 ~3 ~4 glass hollow")));
@@ -553,8 +552,21 @@ test("superagent build blocks emit fill and setblock commands", () => {
   assert(commands.some((command) => command.includes("setblock ~0 ~ ~ stone")));
   assert(commands.some((command) => command.includes("setblock ~2 ~ ~ stone")));
   assert(commands.some((command) => command.includes("setblock ~3 ~ ~ stone")));
-  assert(commands.some((command) => command.includes("fill ~ ~ ~ ~1 ~1 ~1 air")));
   assert.strictEqual(placed, 3);
+});
+
+// clear area runs behavior-pack side at the REAL superagent entity (the tracked
+// MakeCode position is unreliable now that spawning is server-side).
+test("superagent clear area fills air at the real superagent (BP-side)", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.clearArea(8, 9, 7);
+  const commands = agent.commandCalls.map((call) => call[3]);
+  assert(commands.some((command) => command.includes("scriptevent superagent:clear 8 9 7")));
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function handleClear"));
+  assert(script.includes('event.id === "superagent:clear"'));
+  assert(/handleClear[\s\S]*?fill \$\{x1\} \$\{y1\} \$\{z1\} \$\{x2\} \$\{y2\} \$\{z2\} air/.test(script));
 });
 
 test("superagent mining is performed by the visible superagent, not the Agent", () => {

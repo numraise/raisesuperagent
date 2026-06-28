@@ -826,7 +826,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.79 script active");
+      player.sendMessage("superagent 0.1.80 script active");
     }
   } catch (error) {
   }
@@ -2092,6 +2092,39 @@ function scheduleMinerMove(owned, location, rotation) {
   move();
 }
 
+// Clear a box of air centered (horizontally) on the REAL superagent entity, from
+// its feet upward. Runs at the actual entity so it works regardless of how the
+// character was spawned.
+function handleClear(player, message) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    sendFeedback(player, "§eSuperagent: spawn me first to clear an area.");
+    return;
+  }
+  const parts = (message || "").trim().split(/\s+/);
+  const clampDim = (v) => {
+    let n = Number(v);
+    if (!Number.isFinite(n)) {
+      n = 1;
+    }
+    return Math.max(1, Math.min(16, Math.round(n)));
+  };
+  const w = clampDim(parts[0]);
+  const h = clampDim(parts[1]);
+  const d = clampDim(parts[2]);
+  const sx = Math.floor(owned.location.x);
+  const sy = Math.floor(owned.location.y);
+  const sz = Math.floor(owned.location.z);
+  const x1 = sx - Math.floor((w - 1) / 2);
+  const x2 = x1 + w - 1;
+  const z1 = sz - Math.floor((d - 1) / 2);
+  const z2 = z1 + d - 1;
+  const y1 = sy;
+  const y2 = sy + h - 1;
+  runCommandSafe(owned.dimension, `fill ${x1} ${y1} ${z1} ${x2} ${y2} ${z2} air`);
+  playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
+}
+
 function handleMine(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
@@ -2274,6 +2307,12 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   if (event.id === "superagent:mine") {
     for (const player of playersForEvent(event)) {
       handleMine(player, event.message);
+    }
+    return;
+  }
+  if (event.id === "superagent:clear") {
+    for (const player of playersForEvent(event)) {
+      handleClear(player, event.message);
     }
     return;
   }

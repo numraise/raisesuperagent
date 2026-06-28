@@ -1487,7 +1487,14 @@ namespace superagent {
     //% width.min=1 width.max=16 height.min=1 height.max=16 depth.min=1 depth.max=16
     //% group="Build"
     export function clearArea(width: number, height: number, depth: number) {
-        buildBox(SuperagentBlock.Air, width, height, depth)
+        width = clamp(width, 1, 16)
+        height = clamp(height, 1, 16)
+        depth = clamp(depth, 1, 16)
+        ensureCharacter()
+        // Clear around the REAL superagent entity (behavior-pack side). Building
+        // from MakeCode's tracked position is unreliable now that the character is
+        // spawned server-side at the player, so the behavior pack does the fill.
+        runAtAgent("scriptevent superagent:clear " + width + " " + height + " " + depth)
     }
 
     /**
