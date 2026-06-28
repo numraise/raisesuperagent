@@ -826,7 +826,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.77 script active");
+      player.sendMessage("superagent 0.1.78 script active");
     }
   } catch (error) {
   }
@@ -1590,24 +1590,6 @@ function ownerPlayersForEvent(event, target) {
   return world.getPlayers();
 }
 
-// Strict owner resolution for coordinate-bearing commands that act on ONE
-// player's character (spawn/recall to agent). Prefer the real source player;
-// otherwise the single closest player to the target (the owner whose Agent is
-// there). If neither can be determined, return NO players — never fall back to
-// the whole world, or one player's command would drag every player's character.
-function resolveSingleOwner(event, target) {
-  if (isPlayerSource(event.sourceEntity)) {
-    return [event.sourceEntity];
-  }
-  if (target) {
-    const near = closestEntity(world.getPlayers(), target);
-    if (near) {
-      return [near];
-    }
-  }
-  return [];
-}
-
 function ownedSuperagentForEvent(player) {
   return closestEntity(findOwnedSuperagents(player), player.location);
 }
@@ -2032,20 +2014,21 @@ function removeStrayOwnedSuperagents(player, keep) {
 }
 
 // Bring the player's character to the player's own position.
-function handleRecall(player) {
+// Place ONLY the player who triggered the event, at THEIR OWN location. Used by
+// spawn-at-player, spawn-at-agent and recall-to-agent. Coordinates in the event
+// are ignored on purpose (host-shared agent in multiplayer). If there is no real
+// player source (e.g. a timer-run command) nothing happens — we never fall back
+// to all players (that would also move the host "kru_game").
+function placeCallerSuperagentAtSelf(event) {
+  const player = event.sourceEntity;
+  if (!isPlayerSource(player)) {
+    return;
+  }
   placeOwnedSuperagentAt(player, {
     x: player.location.x,
     y: player.location.y,
     z: player.location.z
   });
-}
-
-function handleSpawnAt(player, message) {
-  const target = parseGoto(message);
-  if (!target) {
-    return;
-  }
-  placeOwnedSuperagentAt(player, target);
 }
 
 // ---- mining (the visible superagent breaks blocks itself) -----------------
@@ -2276,35 +2259,16 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
     }
     return;
   }
-  if (event.id === "superagent:recall") {
-    // Spawn at player: place ONLY the typing player's character at their own
-    // location (same per-player rule as spawn/recall at agent).
-    const p = event.sourceEntity;
-    if (isPlayerSource(p)) {
-      placeOwnedSuperagentAt(p, { x: p.location.x, y: p.location.y, z: p.location.z });
-    }
-    return;
-  }
-  if (event.id === "superagent:spawnat") {
-    // Coordinates are the caller's OWN Agent position. Scope strictly to the
-    // owner (source player, or the single closest player to those coordinates)
-    // so one player's spawn/recall never moves another player's superagent.
-    const target = parseGoto(event.message);
-    for (const player of resolveSingleOwner(event, target)) {
-      handleSpawnAt(player, event.message);
-    }
-    return;
-  }
-  if (event.id === "superagent:spawnatagent") {
-    // Place ONLY the player who typed the command, at THEIR OWN location. The
-    // scriptevent source IS the typing player (verified via the debug report's
-    // "you="), so we use it directly. We must NOT iterate world.getPlayers()
-    // (that includes the host "kru_game", which would get a character too) and
-    // we must NOT use MakeCode agent coords (host-shared in multiplayer).
-    const p = event.sourceEntity;
-    if (isPlayerSource(p)) {
-      placeOwnedSuperagentAt(p, { x: p.location.x, y: p.location.y, z: p.location.z });
-    }
+  // spawn at player / spawn at agent / recall to agent ALL resolve to the same
+  // reliable action: place the TYPING player's one character at that player's own
+  // location. We deliberately ignore ANY coordinates in the message — in
+  // Education multiplayer MakeCode's agent.getPosition() is the host's shared
+  // Agent, so message coords would drag every player's character onto one Agent.
+  // event.sourceEntity is the real typing player (verified by the debug "you=").
+  if (event.id === "superagent:recall" ||
+      event.id === "superagent:spawnat" ||
+      event.id === "superagent:spawnatagent") {
+    placeCallerSuperagentAtSelf(event);
     return;
   }
   if (event.id === "superagent:mine") {

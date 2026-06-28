@@ -12,3 +12,7 @@ node_modules/
 # Build artifacts
 dist/*.mcaddon
 dist/*.mcpack
+
+# Local tool caches / large evidence (never commit)
+.serena/
+evidence/

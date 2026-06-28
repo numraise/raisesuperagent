@@ -1005,39 +1005,36 @@ test("superagent spawn/recall at agent send a coordinate-free per-player event",
 
 test("superagent spawn/recall place ONLY the typing player at their own spot", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  // All three events route to the single caller-at-self placer.
   assert(script.includes('event.id === "superagent:spawnatagent"'));
   assert(script.includes('event.id === "superagent:recall"'));
-  // Use the scriptevent source (the typing player), NOT world.getPlayers() (that
-  // includes the host "kru_game") and NOT MakeCode agent coords (host-shared).
+  assert(script.includes('event.id === "superagent:spawnat"'));
+  assert(script.includes("function placeCallerSuperagentAtSelf"));
+  assert(/superagent:spawnat[\s\S]{0,80}placeCallerSuperagentAtSelf\(event\)/.test(script));
+  // The placer uses the event source (typing player) and its OWN location, never
+  // world.getPlayers() and never the message coordinates (host-shared agent).
+  const fn = script.match(/function placeCallerSuperagentAtSelf[\s\S]*?\n}/)[0];
+  assert(fn.includes("event.sourceEntity"));
+  assert(fn.includes("isPlayerSource"));
+  assert(fn.includes("player.location"));
+  assert(!fn.includes("world.getPlayers()"));
+  assert(!fn.includes("parseGoto"));
   assert(!script.includes("function bringEachPlayersSuperagentHome"));
-  assert(/superagent:spawnatagent[\s\S]{0,700}const p = event\.sourceEntity;[\s\S]{0,200}placeOwnedSuperagentAt\(p,/.test(script));
-  assert(/superagent:recall[\s\S]{0,400}const p = event\.sourceEntity;[\s\S]{0,200}placeOwnedSuperagentAt\(p,/.test(script));
   // Single-owner tagging prevents stale multi-owner tags accumulating.
   assert(script.includes("function setSingleOwnerTag"));
   assert(script.includes("setSingleOwnerTag(superagent, player)"));
 });
 
-test("superagent script scopes spawnat to a single owner (never all players)", () => {
-  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('event.id === "superagent:spawnat"'));
-  // spawnat resolves ONE owner via resolveSingleOwner, which returns [] (no-op)
-  // when the owner cannot be determined instead of moving every player's char.
-  assert(script.includes("function resolveSingleOwner"));
-  assert(/resolveSingleOwner\(event, target\)[\s\S]{0,120}handleSpawnAt/.test(script));
-  // resolveSingleOwner must not fall back to world.getPlayers()
-  const fn = script.match(/function resolveSingleOwner[\s\S]*?\n}/)[0];
-  assert(!fn.includes("world.getPlayers()") || /return \[\];/.test(fn));
-});
-
-// BUG-002 (definitive): spawn/recall to agent only act on characters AT the
-// target location, so one player's command can never move another player's
-// character across the world — even if ownership tags were corrupted earlier.
+// BUG-002 (definitive): spawn/recall ignore MakeCode coordinates entirely and
+// place the typing player's character at their own location, so one player's
+// command can never move another player's character.
 test("superagent spawn/recall act only on characters at the target", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function placeOwnedSuperagentAt"));
-  // handleSpawnAt and handleRecall both route through the target-local placer.
-  assert(/function handleSpawnAt[\s\S]*?placeOwnedSuperagentAt\(player, target\)/.test(script));
-  assert(/function handleRecall[\s\S]*?placeOwnedSuperagentAt\(player, \{/.test(script));
+  // The dead coordinate-based handlers are gone; placement is caller-at-self.
+  assert(!script.includes("function resolveSingleOwner"));
+  assert(!script.includes("function handleSpawnAt"));
+  assert(!script.includes("function handleRecall"));
   // The placer searches a TIGHT radius around the target (not 128 blocks).
   const fn = script.match(/function placeOwnedSuperagentAt[\s\S]*?\n}/)[0];
   assert(fn.includes("maxDistance: 8"));
