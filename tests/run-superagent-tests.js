@@ -1045,6 +1045,17 @@ test("superagent hides spawn/recall at agent blocks, keeps spawn at player", () 
   assert(source.includes('blockId=superagent_spawn_at_player block="superagent spawn at player"'));
 });
 
+// Deep audit: spawn at player must anchor the tracked position so sensing and
+// position-reporter blocks don't read the world origin (0,0,0) afterwards.
+test("superagent spawn at player anchors the tracked position (not 0,0,0)", () => {
+  const agent = createMockAgent();
+  const toolkit = loadSuperagent(agent);
+  toolkit.spawnAtPlayer();
+  assert.strictEqual(toolkit.positionX(), 10);
+  assert.strictEqual(toolkit.positionY(), 20);
+  assert.strictEqual(toolkit.positionZ(), 30);
+});
+
 test("superagent spawn/recall place ONLY the typing player at their own spot", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   // All three events route to the single caller-at-self placer.

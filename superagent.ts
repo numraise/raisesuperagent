@@ -656,6 +656,14 @@ namespace superagent {
     //% group="Control"
     export function spawnAtPlayer() {
         followingAgent = false
+        // Anchor MakeCode's tracked position to the Agent (which is right next to
+        // the player, where the behavior pack places the character). Without this
+        // the tracked position stays at (0,0,0), so sensing and position-reporter
+        // blocks would read the world origin after "spawn at player". This keeps
+        // them anchored near the character (accurate in single-player).
+        let here = agent.getPosition()
+        superagentPosition = here
+        setTrackedPositionFrom(here)
         // Send only the scriptevent. The behavior pack creates and OWNS the
         // character for the player who ran this command and places it on that
         // player. We avoid a raw "summon" (and the older nested execute-run form
