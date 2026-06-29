@@ -1302,12 +1302,18 @@ test("superagent toolbox exposes position reporter blocks for labels", () => {
   assert(source.includes('blockId=superagent_position_z block="superagent z"'));
   assert(source.includes('blockId=superagent_label_world_position block="superagent label world position"'));
   assert(source.includes('blockId=superagent_report_world_position block="superagent report world position"'));
-  assert(source.includes('blockId=superagent_world_position_text block="superagent world position text"'));
-  assert(source.includes('blockId=superagent_world_x block="superagent world x"'));
-  assert(source.includes('blockId=superagent_world_y block="superagent world y"'));
-  assert(source.includes('blockId=superagent_world_z block="superagent world z"'));
   assert(source.includes('blockId=superagent_world_position_at_text block="superagent world position text x %x y %y z %z"'));
-  assert(source.includes('blockId=superagent_value_world_direction block="superagent world direction %direction"'));
+  // Cleanup: the "world x/y/z" + "world position text" blocks were EXACT
+  // duplicates of "x/y/z" + "position x y z" and are hidden from the toolbox.
+  assert(!source.includes('blockId=superagent_world_position_text '));
+  assert(!source.includes('blockId=superagent_world_x '));
+  assert(!source.includes('blockId=superagent_world_y '));
+  assert(!source.includes('blockId=superagent_world_z '));
+  // Identity enum value helpers (mob/direction) are hidden — use the dropdowns.
+  assert(!source.includes('blockId=superagent_value_world_direction '));
+  assert(!source.includes('blockId=superagent_value_mob '));
+  // Orphaned "paste here" (its copy block is hidden) is hidden too.
+  assert(!source.includes('blockId=superagent_paste_here '));
 });
 
 test("superagent add-on can label and report its real entity world position", () => {
@@ -1563,12 +1569,14 @@ test("superagent toolbox hides duplicate or weakly verified legacy blocks", () =
 
 test("superagent toolbox hides confusing enum value helper blocks", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('blockId=superagent_value_mob block="superagent mob %mob"'));
-  assert(source.includes('blockId=superagent_value_world_direction block="superagent world direction %direction"'));
-  assert(!source.includes('blockId=superagent_value_move_direction block="superagent direction %direction"'));
-  assert(!source.includes('blockId=superagent_value_sense_direction block="superagent sense direction %direction"'));
-  assert(!source.includes('blockId=superagent_value_block block="superagent block %block"'));
-  assert(!source.includes('blockId=superagent_value_transform block="superagent transform %transform"'));
+  // ALL identity enum value helpers are hidden (they just return what you pick;
+  // use the dropdown on the real command blocks instead).
+  assert(!source.includes('blockId=superagent_value_mob '));
+  assert(!source.includes('blockId=superagent_value_world_direction '));
+  assert(!source.includes('blockId=superagent_value_move_direction '));
+  assert(!source.includes('blockId=superagent_value_sense_direction '));
+  assert(!source.includes('blockId=superagent_value_block '));
+  assert(!source.includes('blockId=superagent_value_transform '));
   assert(source.includes('group="Values"'));
 });
 

@@ -1300,10 +1300,9 @@ namespace superagent {
     }
 
     /**
-     * Value block: use a mob type as a plug-in input for sensing blocks.
+     * HIDDEN: identity value helper (returns the mob you picked). Redundant — use
+     * the %mob dropdown on the sensing blocks directly. Kept for compatibility.
      */
-    //% blockId=superagent_value_mob block="superagent mob %mob"
-    //% group="Values"
     export function mobValue(mob: SuperagentMobType): SuperagentMobType {
         return mob
     }
@@ -1323,46 +1322,38 @@ namespace superagent {
     }
 
     /**
-     * Value block: use a world direction as a plug-in input for movement commands.
+     * HIDDEN: identity value helper (returns the direction you picked). Redundant
+     * — use the %direction dropdown on the command blocks directly.
      */
-    //% blockId=superagent_value_world_direction block="superagent world direction %direction"
-    //% group="Values"
     export function worldDirectionValue(direction: SuperagentMoveDirection): SuperagentMoveDirection {
         return direction
     }
 
     /**
-     * Text reporter: the tracked superagent world position.
+     * HIDDEN: exact duplicate of "superagent position x y z" (both return the
+     * tracked position text). Use the "position x y z" reporter instead.
      */
-    //% blockId=superagent_world_position_text block="superagent world position text"
-    //% group="Values"
     export function worldPositionText(): string {
         return positionText()
     }
 
     /**
-     * Number reporter: tracked superagent world x coordinate.
+     * HIDDEN: exact duplicate of "superagent x". Use "superagent x" instead.
      */
-    //% blockId=superagent_world_x block="superagent world x"
-    //% group="Values"
     export function worldX(): number {
         return trackedX
     }
 
     /**
-     * Number reporter: tracked superagent world y coordinate.
+     * HIDDEN: exact duplicate of "superagent y". Use "superagent y" instead.
      */
-    //% blockId=superagent_world_y block="superagent world y"
-    //% group="Values"
     export function worldY(): number {
         return trackedY
     }
 
     /**
-     * Number reporter: tracked superagent world z coordinate.
+     * HIDDEN: exact duplicate of "superagent z". Use "superagent z" instead.
      */
-    //% blockId=superagent_world_z block="superagent world z"
-    //% group="Values"
     export function worldZ(): number {
         return trackedZ
     }
@@ -2125,10 +2116,9 @@ namespace superagent {
     }
 
     /**
-     * Paste the copied region at the superagent position.
+     * HIDDEN: orphaned — the "copy region" block is hidden, so there is nothing to
+     * paste (it would clone the default 0,0,0 region). Kept for compatibility.
      */
-    //% blockId=superagent_paste_here block="superagent paste here"
-    //% group="Blueprint"
     export function pasteHere() {
         runBuildAtSuperagent("clone " + copyX1 + " " + copyY1 + " " + copyZ1 + " " + copyX2 + " " + copyY2 + " " + copyZ2 + " ~ ~ ~")
     }
