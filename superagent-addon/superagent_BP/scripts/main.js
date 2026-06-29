@@ -815,7 +815,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.86 script active");
+      player.sendMessage("superagent 0.1.87 script active");
     }
   } catch (error) {
   }
@@ -1430,6 +1430,24 @@ function handleStopCombat() {
 // Teacher cleanup: remove EVERY superagent character (and guards) in every
 // player's dimension using the scripting API. This bypasses command add-ons
 // such as RaiseUAC that rewrite "/kill @e[type=...]" selectors and break them.
+// Remove ONLY the calling player's own character(s) and their guards. Another
+// player's character is never touched.
+function handleRemoveMine(player) {
+  if (!isPlayerSource(player)) {
+    return;
+  }
+  let removed = 0;
+  for (const entity of findOwnedSuperagentsInDimension(player)) {
+    removeEntitySafe(entity);
+    removed++;
+  }
+  for (const guard of findGuards(player)) {
+    removeEntitySafe(guard);
+    removed++;
+  }
+  sendFeedback(player, "§aSuperagent: removed your character(s) (" + removed + ").");
+}
+
 function handlePurge() {
   const seen = {};
   let removed = 0;
@@ -2366,6 +2384,10 @@ system.afterEvents.scriptEventReceive.subscribe((event) => {
   }
   if (event.id === "superagent:stopcombat") {
     handleStopCombat();
+    return;
+  }
+  if (event.id === "superagent:removemine") {
+    handleRemoveMine(event.sourceEntity);
     return;
   }
   if (event.id === "superagent:purge") {

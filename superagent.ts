@@ -2001,14 +2001,15 @@ namespace superagent {
     }
 
     /**
-     * Teacher control: remove EVERY superagent character in the world (clean slate).
-     * The behavior pack deletes them with the scripting API, so this works even when
+     * Remove ONLY your own superagent character (and your guards). Other players'
+     * characters are not touched. Useful to clear your character and start fresh.
+     * The behavior pack deletes via the scripting API, so it works even when
      * command add-ons (e.g. RaiseUAC) rewrite "/kill @e[type=...]" selectors.
      */
-    //% blockId=superagent_remove_all block="superagent remove all characters"
+    //% blockId=superagent_remove_mine block="superagent remove my character"
     //% group="Control"
-    export function removeAll() {
-        runAtAgent("scriptevent superagent:purge")
+    export function removeMine() {
+        runAtAgent("scriptevent superagent:removemine")
     }
 
     /**

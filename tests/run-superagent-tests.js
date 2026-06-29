@@ -1141,19 +1141,24 @@ test("superagent script stops combat reliably and resets on load", () => {
 
 // Cleanup tool that works even when a command add-on (RaiseUAC) rewrites
 // "/kill @e[type=...]" selectors: the BP removes characters via the script API.
-test("superagent remove all purges characters via the script API", () => {
+test("superagent remove my character removes only the caller's own (script API)", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('blockId=superagent_remove_all block="superagent remove all characters"'));
+  assert(source.includes('blockId=superagent_remove_mine block="superagent remove my character"'));
+  // The old "remove all characters" block is gone.
+  assert(!source.includes('blockId=superagent_remove_all '));
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
-  toolkit.removeAll();
+  toolkit.removeMine();
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("scriptevent superagent:purge")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:removemine")));
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes("function handlePurge"));
-  assert(script.includes('event.id === "superagent:purge"'));
-  assert(script.includes("getEntities({ type: SUPER_AGENT_ID })"));
-  assert(script.includes("removeEntitySafe(entity)"));
+  assert(script.includes("function handleRemoveMine"));
+  assert(script.includes('event.id === "superagent:removemine"'));
+  // Scoped to the caller: only their own owned characters + guards are removed.
+  const fn = script.match(/function handleRemoveMine[\s\S]*?\n}/)[0];
+  assert(fn.includes("findOwnedSuperagentsInDimension(player)"));
+  assert(fn.includes("findGuards(player)"));
+  assert(!fn.includes("world.getPlayers()"));
 });
 
 // Diagnostics + self-healing dedupe so piles of characters can never accumulate.
