@@ -824,7 +824,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.91 script active");
+      player.sendMessage("superagent 0.1.92 script active");
     }
   } catch (error) {
   }
@@ -1558,10 +1558,17 @@ function enforceSuperagentLimits(tick) {
         }
       } catch (error) {
       }
-      if (ownerTagValue && ownerToPlayer[ownerTagValue]) {
+      if (!ownerTagValue) {
+        // UNOWNED: leave it alone. A freshly egg-spawned character is briefly
+        // unowned until the entity-spawn handler claims/repositions it; removing
+        // it here raced that handler and made eggs work only after several tries.
+        continue;
+      }
+      if (ownerToPlayer[ownerTagValue]) {
         (groups[ownerTagValue] = groups[ownerTagValue] || []).push(entity);
       } else {
-        // Unowned (stray egg) OR owned by a non-connected identity → remove.
+        // Owned by a non-connected identity (e.g. the command runner "kru_game") →
+        // remove so phantom characters never linger.
         removeEntitySafe(entity);
       }
     }
