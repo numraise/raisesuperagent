@@ -1428,24 +1428,23 @@ test("superagent script keeps one owner-scoped character and does not self-match
   assert(script.includes('typeId.endsWith(":agent")'));
 });
 
-// An egg placed at a player's feet is claimed for THAT player and dedupes their
-// other characters (no "army"). A character that appears far from every player
-// is left unowned — never proximity-claimed from afar (multiplayer safety).
-test("superagent egg claim is gated to a player right next to it, and dedupes", () => {
+// One character per player from eggs: an egg becomes the nearest player's
+// character ONLY if they have none yet; otherwise it's left unowned and the
+// per-callback enforcement removes it. So placing many eggs never piles up.
+test("superagent egg gives at most one character per player", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function transportSuperagentToEgg"));
   assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
   assert(script.includes("transportSuperagentToEgg(event.entity)"));
   const egg = script.match(/function transportSuperagentToEgg[\s\S]*?\n}/)[0];
-  // Claim only when a player is within ~3 blocks (distanceSquared <= 9).
-  assert(egg.includes("distanceSquared(player.location, spawned.location) > 9"));
-  assert(egg.includes("configureSuperagent(spawned, player)"));
-  // A new egg REPLACES the player's previous character: remove their other
-  // characters across the whole dimension (not just nearby) so none are left.
+  // Claim only if the nearest player owns none yet; otherwise leave unowned.
   assert(egg.includes("findOwnedSuperagentsInDimension(player)"));
-  assert(egg.includes("removeEntitySafe(other)"));
-  // Periodic enforcement keeps exactly one character per connected player.
-  assert(script.includes("function enforceSuperagentLimits"));
+  assert(egg.includes("alreadyOwns"));
+  assert(/if \(alreadyOwns\) \{[\s\S]*?return;/.test(egg));
+  assert(egg.includes("configureSuperagent(spawned, player)"));
+  // Enforcement runs every callback (no modulo gate) so unowned eggs are removed.
+  const enf = script.match(/function enforceSuperagentLimits[\s\S]*?const players = world\.getPlayers\(\);/)[0];
+  assert(!enf.includes("tick % 20"));
 });
 
 test("superagent auto-combat is teacher-toggleable and off by default", () => {

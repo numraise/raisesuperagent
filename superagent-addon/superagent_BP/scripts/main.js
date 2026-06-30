@@ -556,11 +556,15 @@ function transportSuperagentToEgg(spawned) {
     return;
   }
   const player = nearestPlayerTo(spawned);
-  // Only claim a character that appears RIGHT NEXT TO a player (an egg placed at
-  // their feet). A character that appears far from every player is left unowned
-  // for the owner-resolved spawn/recall handler — we never proximity-claim from
-  // afar, which is what mis-assigned characters to the wrong player before.
-  if (!player || distanceSquared(player.location, spawned.location) > 9) {
+  if (!player) {
+    return;
+  }
+  // One character per player. If the nearest player has NO character yet, this
+  // egg becomes theirs (placed anywhere). If they already have one, leave this
+  // egg UNOWNED — the per-callback enforcement removes unowned strays, so placing
+  // many eggs can never give a player more than one character.
+  const alreadyOwns = findOwnedSuperagentsInDimension(player).some((e) => !e.hasTag(GUARD_TAG));
+  if (alreadyOwns) {
     snapEntityToGridAlignment(spawned, true);
     clearMovementState(spawned);
     applyLabel(spawned);
@@ -570,16 +574,6 @@ function transportSuperagentToEgg(spawned) {
   snapEntityToGridAlignment(spawned, true);
   clearMovementState(spawned);
   playDogSound(spawned, "ready", { volume: 0.6, pitch: 1.1 });
-  // Keep ONE character per player: a new egg REPLACES the player's previous
-  // character. Remove this player's other characters across the whole (loaded)
-  // dimension — not just nearby — so a new egg never leaves the old one behind.
-  // Only this player's own copies are removed; another player's is never touched.
-  for (const other of findOwnedSuperagentsInDimension(player)) {
-    if (other.id === spawned.id || other.hasTag(GUARD_TAG)) {
-      continue;
-    }
-    removeEntitySafe(other);
-  }
 }
 
 // Adopt an UNOWNED character sitting right next to a player who owns none yet
@@ -815,7 +809,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.89 script active");
+      player.sendMessage("superagent 0.1.90 script active");
     }
   } catch (error) {
   }
@@ -1509,9 +1503,10 @@ function handleDebug(player) {
 // identity that is not a connected player (e.g. the MakeCode command runner
 // "kru_game"). This is what guarantees no army, no pile, no phantom owners.
 function enforceSuperagentLimits(tick) {
-  if (tick % 20 !== 0) {
-    return;
-  }
+  // Runs every tick-loop callback (no modulo gate). A modulo gate on
+  // system.currentTick could miss every scheduled callback if the interval's
+  // phase never lands on a multiple of the divisor, which left unowned egg
+  // characters lying around. Running each callback is cheap (few entities).
   const players = world.getPlayers();
   if (players.length === 0) {
     return;
