@@ -952,6 +952,31 @@ test("superagent script faces a direction on command", () => {
   assert(!script.includes("rot.x = 90"));
 });
 
+// V3: face must stick on the FIRST run — it clears movement/nav/spin so navStep
+// can't re-rotate the character toward a travel target right after.
+test("superagent face clears movement so it sticks on the first run", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  const fn = script.match(/function handleFace[\s\S]*?\n}/)[0];
+  assert(fn.includes("FOLLOW_WALK_PROP"));
+  assert(fn.includes("clearNavTarget(owned)"));
+  assert(fn.includes("clearPath(owned)"));
+  assert(fn.includes("SPIN_PROP"));
+  assert(fn.includes("setGridAlignedRotation(owned, rot)"));
+});
+
+// V3: set/go home must use the REAL entity / stored home and IGNORE any coords in
+// the message (older extensions sent a stale tracked position).
+test("superagent home uses the real entity, ignores message coordinates", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  const setFn = script.match(/function handleSetHome[\s\S]*?\n}/)[0];
+  assert(setFn.includes("const source = owned.location"));
+  assert(!setFn.includes("parseGoto"));
+  const goFn = script.match(/function handleGoHome[\s\S]*?\n}/)[0];
+  assert(goFn.includes("player.getDynamicProperty(HOME_X_PROP)"));
+  assert(!goFn.includes("parseGoto"));
+  assert(goFn.includes("teleportEntityOpen(owned"));
+});
+
 // BUG-003: face direction dropdown must offer only the four horizontal
 // directions. Movement direction may still include up/down.
 test("superagent face dropdown has no up/down (movement keeps them)", () => {

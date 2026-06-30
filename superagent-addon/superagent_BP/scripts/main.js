@@ -824,7 +824,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.92 script active");
+      player.sendMessage("superagent 0.1.93 script active");
     }
   } catch (error) {
   }
@@ -1690,6 +1690,17 @@ function handleFace(player, message) {
   else if (dir === "south") rot.y = 0;
   else if (dir === "east") rot.y = -90;
   else if (dir === "west") rot.y = 90;
+  else return;
+  // Stop any movement/nav/attack-spin first, otherwise navStep (or the spin)
+  // re-rotates the character toward its travel target on the next tick and the
+  // facing is lost — which is why "face" used to need running 2+ times.
+  owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
+  clearNavTarget(owned);
+  clearPath(owned);
+  try {
+    owned.setDynamicProperty(SPIN_PROP, undefined);
+  } catch (error) {
+  }
   setGridAlignedRotation(owned, rot);
   playDogSound(owned, "happy", { volume: 0.25, pitch: 1.25 });
 }
@@ -1867,20 +1878,20 @@ function handleSetHome(player, message) {
     return;
   }
   const owned = ownedSuperagentForEvent(player);
-  const messagePosition = parseGoto(message);
-  const source = messagePosition || (owned && owned.location);
-  if (!source) {
+  if (!owned) {
     sendFeedback(player, "§eSuperagent: spawn me first, then set home.");
     return;
   }
+  // Always store the REAL character position. We ignore any coordinates in the
+  // message — older extensions sent a stale tracked position, which made home be
+  // saved at the wrong spot (so "go home" and changing home appeared broken).
+  const source = owned.location;
   try {
-    player.setDynamicProperty(HOME_X_PROP, source.x);
-    player.setDynamicProperty(HOME_Y_PROP, source.y);
-    player.setDynamicProperty(HOME_Z_PROP, source.z);
-    if (owned) {
-      playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
-    }
-    sendFeedback(player, "§aSuperagent: home set.");
+    player.setDynamicProperty(HOME_X_PROP, Math.floor(source.x));
+    player.setDynamicProperty(HOME_Y_PROP, Math.floor(source.y));
+    player.setDynamicProperty(HOME_Z_PROP, Math.floor(source.z));
+    playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
+    sendFeedback(player, "§aSuperagent: home set at " + Math.floor(source.x) + " " + Math.floor(source.y) + " " + Math.floor(source.z) + ".");
   } catch (error) {
   }
 }
@@ -1894,10 +1905,11 @@ function handleGoHome(player, message) {
     sendFeedback(player, "§eSuperagent: spawn me first to send me home.");
     return;
   }
-  const messagePosition = parseGoto(message);
-  const x = messagePosition ? messagePosition.x : player.getDynamicProperty(HOME_X_PROP);
-  const y = messagePosition ? messagePosition.y : player.getDynamicProperty(HOME_Y_PROP);
-  const z = messagePosition ? messagePosition.z : player.getDynamicProperty(HOME_Z_PROP);
+  // Always use the STORED home (ignore any coords in the message; older
+  // extensions sent a stale tracked position that sent the character to 0,0,0).
+  const x = player.getDynamicProperty(HOME_X_PROP);
+  const y = player.getDynamicProperty(HOME_Y_PROP);
+  const z = player.getDynamicProperty(HOME_Z_PROP);
   if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") {
     sendFeedback(player, "§eSuperagent: no home set yet. Use \"set home\" first.");
     return;
