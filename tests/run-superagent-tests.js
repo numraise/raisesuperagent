@@ -1428,21 +1428,21 @@ test("superagent script keeps one owner-scoped character and does not self-match
   assert(script.includes('typeId.endsWith(":agent")'));
 });
 
-// One character per player from eggs: an egg becomes the nearest player's
-// character ONLY if they have none yet; otherwise it's left unowned and the
-// per-callback enforcement removes it. So placing many eggs never piles up.
-test("superagent egg gives at most one character per player", () => {
+// One character per player; a new egg REPOSITIONS that one character to the egg
+// spot (move existing + delete egg), or becomes the character if they have none.
+test("superagent egg repositions the player's single character", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes("function transportSuperagentToEgg"));
   assert(script.includes("world.afterEvents.entitySpawn.subscribe"));
   assert(script.includes("transportSuperagentToEgg(event.entity)"));
   const egg = script.match(/function transportSuperagentToEgg[\s\S]*?\n}/)[0];
-  // Claim only if the nearest player owns none yet; otherwise leave unowned.
+  // If the player already has a character: move it to the egg, delete the egg.
   assert(egg.includes("findOwnedSuperagentsInDimension(player)"));
-  assert(egg.includes("alreadyOwns"));
-  assert(/if \(alreadyOwns\) \{[\s\S]*?return;/.test(egg));
+  assert(egg.includes("teleportEntityOpen(keep, target)"));
+  assert(egg.includes("removeEntitySafe(spawned)"));
+  // Else the egg becomes their character.
   assert(egg.includes("configureSuperagent(spawned, player)"));
-  // Enforcement runs every callback (no modulo gate) so unowned eggs are removed.
+  // Enforcement runs every callback (no modulo gate) so strays are removed.
   const enf = script.match(/function enforceSuperagentLimits[\s\S]*?const players = world\.getPlayers\(\);/)[0];
   assert(!enf.includes("tick % 20"));
 });

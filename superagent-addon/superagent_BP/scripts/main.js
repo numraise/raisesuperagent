@@ -559,15 +559,30 @@ function transportSuperagentToEgg(spawned) {
   if (!player) {
     return;
   }
-  // One character per player. If the nearest player has NO character yet, this
-  // egg becomes theirs (placed anywhere). If they already have one, leave this
-  // egg UNOWNED — the per-callback enforcement removes unowned strays, so placing
-  // many eggs can never give a player more than one character.
-  const alreadyOwns = findOwnedSuperagentsInDimension(player).some((e) => !e.hasTag(GUARD_TAG));
-  if (alreadyOwns) {
-    snapEntityToGridAlignment(spawned, true);
-    clearMovementState(spawned);
-    applyLabel(spawned);
+  const target = {
+    x: spawned.location.x,
+    y: spawned.location.y,
+    z: spawned.location.z
+  };
+  // One character per player, and a new egg REPOSITIONS that one character to the
+  // egg's spot. If the nearest player already has a character, move it here and
+  // delete the egg entity (so there is still exactly one, now at the new place).
+  // Otherwise this egg becomes their (only) character.
+  const existing = findOwnedSuperagentsInDimension(player).filter((e) => !e.hasTag(GUARD_TAG));
+  if (existing.length > 0) {
+    const keep = closestEntity(existing, target);
+    for (const other of existing) {
+      if (other.id !== keep.id) {
+        removeEntitySafe(other);
+      }
+    }
+    clearMovementState(keep);
+    try {
+      teleportEntityOpen(keep, target);
+    } catch (error) {
+    }
+    removeEntitySafe(spawned);
+    playDogSound(keep, "ready", { volume: 0.6, pitch: 1.1 });
     return;
   }
   configureSuperagent(spawned, player);
@@ -809,7 +824,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.90 script active");
+      player.sendMessage("superagent 0.1.91 script active");
     }
   } catch (error) {
   }
