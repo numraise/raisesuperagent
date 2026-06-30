@@ -926,7 +926,6 @@ namespace superagent {
     /**
      * True when a mob of the chosen kind is within range of the superagent character.
      */
-    //% blockId=superagent_sense_mob block="superagent sense %mob within %radius blocks"
     //% radius.min=1 radius.max=32
     //% group="Sensing"
     export function senseMob(mob: SuperagentMobType, radius: number): boolean {
@@ -938,7 +937,6 @@ namespace superagent {
     /**
      * True when any hostile mob is within range of the superagent character.
      */
-    //% blockId=superagent_sense_hostiles block="superagent hostiles within %radius blocks"
     //% radius.min=1 radius.max=32
     //% group="Sensing"
     export function senseHostiles(radius: number): boolean {
@@ -948,7 +946,6 @@ namespace superagent {
     /**
      * Distance in blocks to the nearest hostile, or -1 when none is found within range.
      */
-    //% blockId=superagent_nearest_hostile block="superagent nearest hostile distance up to %maxRadius"
     //% maxRadius.min=1 maxRadius.max=32
     //% group="Sensing"
     export function nearestHostileDistance(maxRadius: number): number {
@@ -972,7 +969,6 @@ namespace superagent {
     /**
      * True when the space next to the superagent character in that direction is air.
      */
-    //% blockId=superagent_path_clear block="superagent path clear %direction of character"
     //% group="Sensing"
     export function pathClear(direction: SuperagentSense): boolean {
         ensureCharacter()
@@ -1044,7 +1040,6 @@ namespace superagent {
     /**
      * Distance to the nearest matching block along the 6 axes, or -1 if none.
      */
-    //% blockId=superagent_nearest_block_distance block="superagent nearest %block distance up to %maxRadius"
     //% maxRadius.min=1 maxRadius.max=32
     //% group="Sensing"
     export function nearestBlockDistance(block: SuperagentBlock, maxRadius: number): number {
@@ -1064,7 +1059,6 @@ namespace superagent {
     /**
      * Direction (0=ahead..5=down) to the nearest matching block, or -1 if none.
      */
-    //% blockId=superagent_nearest_block_direction block="superagent nearest %block direction up to %maxRadius"
     //% maxRadius.min=1 maxRadius.max=32
     //% group="Sensing"
     export function nearestBlockDirection(block: SuperagentBlock, maxRadius: number): number {
@@ -1084,7 +1078,6 @@ namespace superagent {
     /**
      * Attack only when a hostile is sensed. Returns true if the character acted.
      */
-    //% blockId=superagent_defend_if_threatened block="superagent defend if hostiles within %radius strength %strength"
     //% radius.min=1 radius.max=5 strength.min=1 strength.max=3
     //% group="Reactive"
     export function defendIfThreatened(radius: number, strength: number): boolean {
@@ -1100,7 +1093,6 @@ namespace superagent {
     /**
      * Move the character forward until a block blocks it. Returns how many blocks it moved.
      */
-    //% blockId=superagent_advance_until_blocked block="superagent advance %direction up to %maxSteps blocks"
     //% maxSteps.min=1 maxSteps.max=32
     //% group="Reactive"
     export function advanceUntilBlocked(direction: SuperagentSense, maxSteps: number): number {
@@ -1167,7 +1159,6 @@ namespace superagent {
     /**
      * Run code once each time a hostile mob enters the radius (rising edge).
      */
-    //% blockId=superagent_on_hostile block="on superagent hostile within %radius blocks"
     //% radius.min=1 radius.max=32
     //% group="Events"
     export function onHostileNear(radius: number, handler: () => void) {
@@ -1177,7 +1168,6 @@ namespace superagent {
     /**
      * Run code once each time the area around the character becomes clear of hostiles.
      */
-    //% blockId=superagent_on_area_clear block="on superagent area clear within %radius blocks"
     //% radius.min=1 radius.max=32
     //% group="Events"
     export function onAreaClear(radius: number, handler: () => void) {
@@ -1243,7 +1233,6 @@ namespace superagent {
     /**
      * True when the character has reached (is within 2 blocks of) a world position.
      */
-    //% blockId=superagent_reached block="superagent reached x %x y %y z %z"
     //% group="Navigation"
     export function reached(x: number, y: number, z: number): boolean {
         return runAtAgent("testfor @e[type=superagent:superagent,x=" + x + ",y=" + y + ",z=" + z + ",r=2]")
@@ -2238,7 +2227,6 @@ namespace superagent {
     /**
      * Sensing: distance in blocks to the Agent, or -1 if not within range.
      */
-    //% blockId=superagent_distance_to_agent block="superagent distance to agent up to %max"
     //% max.min=1 max.max=64
     //% group="Sensing"
     export function distanceToAgent(max: number): number {
@@ -2298,7 +2286,6 @@ namespace superagent {
     /**
      * Judging: should the character attack? (a hostile is within range)
      */
-    //% blockId=superagent_should_attack block="superagent should attack within %radius"
     //% radius.min=1 radius.max=32
     //% group="Judging"
     export function shouldAttack(radius: number): boolean {
@@ -2308,7 +2295,6 @@ namespace superagent {
     /**
      * Judging: is it safe? (no hostile within range)
      */
-    //% blockId=superagent_is_safe block="superagent is safe within %radius"
     //% radius.min=1 radius.max=32
     //% group="Judging"
     export function isSafe(radius: number): boolean {
@@ -2318,7 +2304,6 @@ namespace superagent {
     /**
      * Judging: is danger very close? (a hostile within 3 blocks)
      */
-    //% blockId=superagent_danger_close block="superagent danger close within %radius"
     //% radius.min=1 radius.max=32
     //% group="Judging"
     export function dangerClose(radius: number): boolean {
