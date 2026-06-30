@@ -1299,17 +1299,19 @@ test("superagent extension exposes world position text/number and world directio
   assert.strictEqual(toolkit.worldDirectionValue(1), 1);
 });
 
-test("superagent toolbox exposes position reporter blocks for labels", () => {
+test("superagent toolbox exposes reliable position display blocks only", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('blockId=superagent_position_text block="superagent position x y z"'));
-  assert(source.includes('blockId=superagent_position_x block="superagent x"'));
-  assert(source.includes('blockId=superagent_position_y block="superagent y"'));
-  assert(source.includes('blockId=superagent_position_z block="superagent z"'));
+  // Reliable: these read the REAL entity position (behavior-pack side).
   assert(source.includes('blockId=superagent_label_world_position block="superagent label world position"'));
   assert(source.includes('blockId=superagent_report_world_position block="superagent report world position"'));
   assert(source.includes('blockId=superagent_world_position_at_text block="superagent world position text x %x y %y z %z"'));
-  // Cleanup: the "world x/y/z" + "world position text" blocks were EXACT
-  // duplicates of "x/y/z" + "position x y z" and are hidden from the toolbox.
+  // The tracked-position value reporters were unreliable (same as sensing) and
+  // are hidden — use label/report world position instead.
+  assert(!source.includes('blockId=superagent_position_text '));
+  assert(!source.includes('blockId=superagent_position_x '));
+  assert(!source.includes('blockId=superagent_position_y '));
+  assert(!source.includes('blockId=superagent_position_z '));
+  // Earlier cleanup: exact-duplicate "world x/y/z" + "world position text" hidden.
   assert(!source.includes('blockId=superagent_world_position_text '));
   assert(!source.includes('blockId=superagent_world_x '));
   assert(!source.includes('blockId=superagent_world_y '));

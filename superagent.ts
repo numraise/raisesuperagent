@@ -1360,7 +1360,6 @@ namespace superagent {
      * Text reporter: the tracked superagent x/y/z position. Plug this into
      * `superagent label` or `superagent report`.
      */
-    //% blockId=superagent_position_text block="superagent position x y z"
     //% group="Values"
     export function positionXYZ(): string {
         return positionText()
@@ -1369,7 +1368,6 @@ namespace superagent {
     /**
      * Number reporter: tracked superagent x coordinate.
      */
-    //% blockId=superagent_position_x block="superagent x"
     //% group="Values"
     export function positionX(): number {
         return trackedX
@@ -1378,7 +1376,6 @@ namespace superagent {
     /**
      * Number reporter: tracked superagent y coordinate.
      */
-    //% blockId=superagent_position_y block="superagent y"
     //% group="Values"
     export function positionY(): number {
         return trackedY
@@ -1387,7 +1384,6 @@ namespace superagent {
     /**
      * Number reporter: tracked superagent z coordinate.
      */
-    //% blockId=superagent_position_z block="superagent z"
     //% group="Values"
     export function positionZ(): number {
         return trackedZ
