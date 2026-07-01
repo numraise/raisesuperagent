@@ -824,7 +824,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.93 script active");
+      player.sendMessage("superagent 0.1.94 script active");
     }
   } catch (error) {
   }
@@ -1258,6 +1258,7 @@ function tickSuperagent(player, superagent, tick) {
     keepAlive(superagent);
     snapEntityToGridAlignment(superagent);
   }
+  processMineQueue(superagent, tick);
   navStep(player, superagent);
   spinIfActive(superagent, tick);
   if (tick % MAINTENANCE_TICKS === 0) {
@@ -2195,6 +2196,24 @@ function handleClear(player, message) {
   playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
 }
 
+// ---- mine command QUEUE ---------------------------------------------------
+// Multiple mine commands in one program run on the same tick. Executing them
+// immediately made e.g. "mine down 33" then "mine forward 45" run from the SAME
+// starting spot (forward dug at the top instead of after descending). We queue
+// mine operations per character and run them ONE AT A TIME, waiting for each
+// move to finish before the next, so they follow the programmed order.
+const mineQueues = {};
+const mineBusyUntil = {};
+const MINE_OP_TICKS = 10;
+
+function mineClampN(v, min, max, def) {
+  let n = Number(v);
+  if (!Number.isFinite(n)) {
+    n = def;
+  }
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
 function handleMine(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
@@ -2203,38 +2222,56 @@ function handleMine(player, message) {
   }
   const parts = (message || "").trim().split(/\s+/);
   const mode = (parts[0] || "forward").toLowerCase();
-  const clampN = (v, min, max, def) => {
-    let n = Number(v);
-    if (!Number.isFinite(n)) {
-      n = def;
-    }
-    return Math.max(min, Math.min(max, Math.round(n)));
-  };
+  // Capture the forward direction at command time (from the player's view).
+  const op = { mode: mode, off: playerForwardOffset(player) };
+  if (mode === "strip") {
+    op.length = mineClampN(parts[1], 1, 64, 1);
+    op.tunnels = mineClampN(parts[2], 1, 8, 1);
+    op.gap = mineClampN(parts[3], 1, 4, 1);
+  } else {
+    op.count = mineClampN(parts[1], 1, 64, 1);
+  }
+  (mineQueues[owned.id] = mineQueues[owned.id] || []).push(op);
+}
+
+// Run the next queued mine op for a character, if it is not still busy moving.
+function processMineQueue(owned, tick) {
+  const id = owned.id;
+  const queue = mineQueues[id];
+  if (!queue || queue.length === 0) {
+    return;
+  }
+  if (typeof mineBusyUntil[id] === "number" && tick < mineBusyUntil[id]) {
+    return;
+  }
+  const op = queue.shift();
+  mineBusyUntil[id] = tick + MINE_OP_TICKS;
+  executeMineOp(owned, op);
+}
+
+function executeMineOp(owned, op) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearNavTarget(owned);
   clearPath(owned);
-
   const dim = owned.dimension;
   const bx = Math.floor(owned.location.x);
   const by = Math.floor(owned.location.y);
   const bz = Math.floor(owned.location.z);
-  const off = playerForwardOffset(player);
+  const off = op.off || playerForwardOffset(owned);
   const rotation = cardinalRotationFromOffset(off);
   let destination;
 
-  if (mode === "down") {
-    const count = clampN(parts[1], 1, 64, 1);
+  if (op.mode === "down") {
+    const count = op.count || 1;
     for (let i = 1; i <= count; i++) {
       breakBlockAt(dim, bx, by - i, bz);
     }
     destination = { x: bx + 0.5, y: by - count, z: bz + 0.5 };
-  } else if (mode === "strip") {
-    // strip <length> <tunnels> <gap>: dig `tunnels` parallel 2-high forward
-    // tunnels, each `length` long, separated sideways by `gap` solid blocks.
-    const length = clampN(parts[1], 1, 64, 1);
-    const tunnels = clampN(parts[2], 1, 8, 1);
-    const gap = clampN(parts[3], 1, 4, 1);
-    const lateral = { x: -off.z, z: off.x }; // 90° from forward
+  } else if (op.mode === "strip") {
+    const length = op.length || 1;
+    const tunnels = op.tunnels || 1;
+    const gap = op.gap || 1;
+    const lateral = { x: -off.z, z: off.x };
     const step = gap + 1;
     for (let t = 0; t < tunnels; t++) {
       const ox = bx + lateral.x * t * step;
@@ -2244,12 +2281,10 @@ function handleMine(player, message) {
         breakBlockAt(dim, ox + off.x * i, by + 1, oz + off.z * i);
       }
     }
-    // End at the far end of the FIRST tunnel.
     destination = { x: bx + off.x * length + 0.5, y: by, z: bz + off.z * length + 0.5 };
     setGridAlignedRotation(owned, rotation);
   } else {
-    // forward <count>: one 2-high tunnel `count` long, then advance.
-    const count = clampN(parts[1], 1, 64, 1);
+    const count = op.count || 1;
     for (let i = 1; i <= count; i++) {
       breakBlockAt(dim, bx + off.x * i, by, bz + off.z * i);
       breakBlockAt(dim, bx + off.x * i, by + 1, bz + off.z * i);
@@ -2258,7 +2293,7 @@ function handleMine(player, message) {
     setGridAlignedRotation(owned, rotation);
   }
 
-  scheduleMinerMove(owned, destination, mode === "down" ? entityRotation(owned) : rotation);
+  scheduleMinerMove(owned, destination, op.mode === "down" ? entityRotation(owned) : rotation);
   playDogSound(owned, "move", { volume: 0.5, pitch: 0.9 });
 }
 

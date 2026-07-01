@@ -1144,11 +1144,27 @@ test("superagent script mines deterministically along the player's view", () => 
   assert(script.includes("function placeMiner"));
   assert(!/function mineTunnelForward/.test(script));
   // strip mine digs `tunnels` parallel tunnels separated sideways by `gap`.
-  const mine = script.match(/function handleMine[\s\S]*?\n}/)[0];
-  assert(mine.includes('mode === "strip"'));
-  assert(mine.includes("lateral"));
-  assert(mine.includes("gap"));
-  assert(mine.includes("tunnels"));
+  const exec = script.match(/function executeMineOp[\s\S]*?\n}/)[0];
+  assert(exec.includes('op.mode === "strip"'));
+  assert(exec.includes("lateral"));
+  assert(exec.includes("gap"));
+  assert(exec.includes("tunnels"));
+});
+
+// V4: multiple mine commands run in the programmed ORDER (mine down then mine
+// forward), via a per-character queue processed one op at a time.
+test("superagent mine commands run in order via a queue", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function processMineQueue"));
+  assert(script.includes("function executeMineOp"));
+  assert(script.includes("mineQueues"));
+  assert(script.includes("mineBusyUntil"));
+  // handleMine ENQUEUES (does not execute immediately).
+  const hm = script.match(/function handleMine[\s\S]*?\n}/)[0];
+  assert(/mineQueues\[owned\.id\][\s\S]*?\.push\(op\)/.test(hm));
+  assert(!hm.includes("breakBlockAt"));
+  // The queue is pumped from the per-character tick.
+  assert(script.includes("processMineQueue(superagent, tick)"));
 });
 
 // BUG-007: turning the guard off (or stop combat) clears the flag + visuals and
@@ -1390,7 +1406,9 @@ test("superagent entity is a visible one-block programmable character", () => {
     deals_damage: "no",
   });
   assert(components["minecraft:persistent"]);
-  assert.strictEqual(components["minecraft:physics"].has_collision, true);
+  // has_collision is false so the builder/miner is never trapped inside a block
+  // it places or digs. Walking collision is handled in script (blockIsObstacle).
+  assert.strictEqual(components["minecraft:physics"].has_collision, false);
   assert.strictEqual(components["minecraft:physics"].has_gravity, false);
   assert.strictEqual(components["minecraft:nameable"].always_show, true);
   assert.strictEqual(components["minecraft:scale"].value, 1.0);
