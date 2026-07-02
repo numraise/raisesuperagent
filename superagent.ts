@@ -214,7 +214,7 @@ namespace superagent {
     // this against its own version and warns the tester in chat when they are
     // testing on a stale extension — the #1 recurring cause of "fixed bugs
     // coming back" was an old extension paired with a new .mcaddon.
-    const SUPERAGENT_EXT_VERSION = "0.1.96"
+    const SUPERAGENT_EXT_VERSION = "0.1.97"
     let versionHelloSent = false
 
     function sendVersionHello() {

@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.96";
+const SCRIPT_VERSION = "0.1.97";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -971,7 +971,11 @@ function gridAlignedTeleportOptions(entity, options) {
   } else if (options && options.facingLocation && entity && entity.location) {
     nextOptions.rotation = cardinalRotationFromTo(entity.location, options.facingLocation);
   } else {
-    nextOptions.rotation = { x: 0, y: 0 };
+    // PRESERVE the entity's current facing. Defaulting to yaw 0 (south) here
+    // meant every rotation-less teleport (step, go home, self-rescue, ...)
+    // silently reset the character's facing — so "face north" appeared broken
+    // the moment anything else moved the character.
+    nextOptions.rotation = { x: 0, y: snapYawToCardinal(entityRotation(entity).y) };
   }
   return nextOptions;
 }
@@ -2173,6 +2177,29 @@ function playerForwardOffset(player) {
   return { x: 0, z: dir.z >= 0 ? 1 : -1 };
 }
 
+// Horizontal cardinal offset of the CHARACTER's own facing. "mine forward"
+// must dig where the superagent is facing (e.g. right after "face north"),
+// not where the player's camera happens to point — using the player's view
+// made the character dig out of its SIDE.
+function cardinalOffsetFromYaw(yaw) {
+  const y = snapYawToCardinal(yaw);
+  if (y === 0) return { x: 0, z: 1 };                 // south
+  if (y === 180 || y === -180) return { x: 0, z: -1 }; // north
+  if (y === -90) return { x: 1, z: 0 };               // east
+  return { x: -1, z: 0 };                             // west
+}
+
+function superagentForwardOffset(owned, player) {
+  try {
+    const rot = owned.getRotation();
+    if (rot && Number.isFinite(rot.y)) {
+      return cardinalOffsetFromYaw(rot.y);
+    }
+  } catch (error) {
+  }
+  return playerForwardOffset(player);
+}
+
 function cardinalRotationFromOffset(off) {
   if (off.x > 0) return { x: 0, y: -90 }; // east
   if (off.x < 0) return { x: 0, y: 90 };  // west
@@ -2431,8 +2458,9 @@ function handleMine(player, message) {
   }
   const parts = (message || "").trim().split(/\s+/);
   const mode = (parts[0] || "forward").toLowerCase();
-  // Capture the forward direction at command time (from the player's view).
-  const op = { mode: mode, off: playerForwardOffset(player) };
+  // Capture the forward direction at command time from the CHARACTER's facing
+  // (so "face north" then "mine forward" digs north out of its front).
+  const op = { mode: mode, off: superagentForwardOffset(owned, player) };
   if (mode === "strip") {
     op.length = mineClampN(parts[1], 1, 64, 1);
     op.tunnels = mineClampN(parts[2], 1, 8, 1);
@@ -2466,7 +2494,7 @@ function executeMineOp(owned, op) {
   const bx = Math.floor(owned.location.x);
   const by = Math.floor(owned.location.y);
   const bz = Math.floor(owned.location.z);
-  const off = op.off || playerForwardOffset(owned);
+  const off = op.off || cardinalOffsetFromYaw(entityRotation(owned).y);
   const rotation = cardinalRotationFromOffset(off);
   let destination;
 

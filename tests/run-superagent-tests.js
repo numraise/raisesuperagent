@@ -1635,7 +1635,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.96"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.97"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1644,7 +1644,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.96"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.97"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1712,4 +1712,23 @@ test("version line announces on EVERY world join (not gated by a persistent tag)
   // (the historical tag name may still appear in an explanatory comment)
   assert(script.includes("announcedReadyPlayers"));
   assert(script.includes('script active'));
+});
+
+test("teleports preserve the character's facing (face no longer resets on movement)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  // Rotation-less teleports must keep the current yaw, not reset to south.
+  assert(script.includes("snapYawToCardinal(entityRotation(entity).y)"));
+  assert(!script.includes("nextOptions.rotation = { x: 0, y: 0 };"));
+});
+
+test("mine forward digs out of the CHARACTER's front, not the player's camera", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function cardinalOffsetFromYaw"));
+  assert(script.includes("function superagentForwardOffset"));
+  assert(script.includes("off: superagentForwardOffset(owned, player)"));
+  assert(!script.includes("off: playerForwardOffset(player)"));
+  // Yaw mapping matches handleFace: 180=north, 0=south, -90=east, 90=west.
+  assert(script.includes('if (y === 0) return { x: 0, z: 1 }'));
+  assert(script.includes('if (y === 180 || y === -180) return { x: 0, z: -1 }'));
+  assert(script.includes('if (y === -90) return { x: 1, z: 0 }'));
 });
