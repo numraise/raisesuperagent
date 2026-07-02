@@ -1635,7 +1635,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.95"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.96"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1644,7 +1644,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.95"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.96"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1702,4 +1702,14 @@ test("home commands always answer in chat (set / go / clear)", () => {
   assert(script.includes("เซ็ตบ้านแล้วที่"));
   assert(script.includes("กลับบ้านแล้วที่"));
   assert(script.includes("ล้างตำแหน่งบ้านแล้ว"));
+});
+
+test("version line announces on EVERY world join (not gated by a persistent tag)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  // The old persistent READY_TAG suppressed the "script active" line forever
+  // after the first time, breaking version verification on join.
+  assert(!script.includes("READY_TAG"));
+  // (the historical tag name may still appear in an explanatory comment)
+  assert(script.includes("announcedReadyPlayers"));
+  assert(script.includes('script active'));
 });

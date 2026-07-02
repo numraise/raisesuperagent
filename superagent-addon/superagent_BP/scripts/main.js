@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.95";
+const SCRIPT_VERSION = "0.1.96";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -138,7 +138,6 @@ const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
 const ROOT_TAG = "superagent.managed";
 const OWNER_TAG_PREFIX = "superagent.owner.";
-const READY_TAG = "superagent.ready.0_1_35";
 const LABEL_PROPERTY = "superagent:label";
 const COMBAT_FLAG = "superagent:combat_enabled";
 const FREEZE_FLAG = "superagent:frozen";
@@ -823,12 +822,21 @@ function cleanupLegacyVisibleMarkers(player, anchorLocation) {
   runCommandSafe(player.dimension, `kill @e[type=${LEGACY_VISIBLE_MARKER_ID},name=superaagent]`);
 }
 
+// Announce once per player PER SCRIPT SESSION (in-memory, resets every world
+// load). The old version gated this on a PERSISTENT player tag
+// (superagent.ready.0_1_35), so anyone who had ever seen the message once —
+// on any version since 0.1.35 — never saw it again, which silently broke the
+// "check the version line on join" verification step.
+const announcedReadyPlayers = {};
+
 function announceReady(player) {
   try {
-    if (!player.hasTag(READY_TAG)) {
-      player.addTag(READY_TAG);
-      player.sendMessage("superagent " + SCRIPT_VERSION + " script active");
+    const name = player.name || "?";
+    if (announcedReadyPlayers[name]) {
+      return;
     }
+    announcedReadyPlayers[name] = true;
+    player.sendMessage("superagent " + SCRIPT_VERSION + " script active");
   } catch (error) {
   }
 }
