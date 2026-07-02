@@ -656,20 +656,19 @@ test("superagent shape library emits geometry build commands", () => {
   toolkit.buildCircle(0, 2);
   toolkit.buildDisc(0, 2);
   const commands = agent.commandCalls.map((call) => call[3]);
-  assert(commands.some((command) => command.includes("fill ~0 ~0 ~0 ~2 ~0 ~2 stone")));
-  assert(commands.some((command) => command.includes("fill ~1 ~1 ~1 ~1 ~1 ~1 stone")));
-  assert(commands.some((command) => command.includes("setblock ~2 ~2 ~ stone")));
-  assert(commands.some((command) => command.includes("setblock ~2 ~ ~0 stone")));
-  assert(commands.some((command) => command.includes("fill ~-2 ~ ~-")));
-  // Build commands route through the behavior pack so they run at the REAL
-  // superagent entity (fixes builds appearing around the player/Agent).
-  assert(commands.every((command) => !command.includes("fill") || command.includes("scriptevent superagent:build fill")));
+  // Shapes are computed BP-side from ONE absolute origin now: the extension
+  // emits a single shape scriptevent per block instead of streaming relative
+  // fills (which produced hourglass pyramids and torn discs).
+  assert(commands.some((command) => command.includes("scriptevent superagent:shape pyramid stone 3")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:shape staircase stone east 3")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:shape circle stone 2")));
+  assert(commands.some((command) => command.includes("scriptevent superagent:shape disc stone 2")));
 });
 
 test("superagent build runs as the real superagent entity (BP-side)", () => {
   const agent = createMockAgent();
   const toolkit = loadSuperagent(agent);
-  toolkit.buildDisc(1, 1); // glass radius 1
+  toolkit.buildBox(1, 2, 2, 2); // glass box (still routed via superagent:build)
   const commands = agent.commandCalls.map((call) => call[3]);
   assert(commands.some((command) => command.includes("scriptevent superagent:build ")));
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
@@ -1632,4 +1631,75 @@ test("superagent toolbox hides confusing enum value helper blocks", () => {
 test("superagent toolbox hides legacy Agent command mirrors", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
   assert(!source.includes('block="superagent agent '));
+});
+
+test("extension announces its version to the behavior pack before the first command", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.95"'));
+  assert(source.includes("scriptevent superagent:hello"));
+  // Sent once, from runAtAgent, so it always precedes any real command.
+  assert(source.includes("sendVersionHello()"));
+  assert(/function runAtAgent\(command: string\): boolean \{\s*\n\s*sendVersionHello\(\)/.test(source));
+});
+
+test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes('const SCRIPT_VERSION = "0.1.95"'));
+  assert(script.includes('"superagent:hello"'));
+  assert(script.includes("function handleHello"));
+  assert(script.includes("function warnIfStaleExtension"));
+  // Old extensions never send hello -> warn once when any command arrives first.
+  assert(script.includes("warnIfStaleExtension(event)"));
+  // The warning tells the tester exactly where to re-import from.
+  assert(script.includes("EXTENSION_IMPORT_URL"));
+  // Debug report shows both versions so screenshots always carry the proof.
+  assert(script.includes('extension=" + extVersion'));
+});
+
+test("extension, behavior pack, and manifests all agree on one release version", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  const pxt = readJson(path.join(ROOT, "pxt.json"));
+  const extMatch = source.match(/SUPERAGENT_EXT_VERSION = "([^"]+)"/);
+  const bpMatch = script.match(/SCRIPT_VERSION = "([^"]+)"/);
+  assert(extMatch && bpMatch);
+  assert.strictEqual(extMatch[1], pxt.version);
+  assert.strictEqual(bpMatch[1], pxt.version);
+});
+
+test("pyramid, disc, circle and staircase are built BP-side from one absolute origin", () => {
+  const source = fs.readFileSync(SOURCE, "utf8");
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  // Extension sends ONE shape scriptevent instead of streaming relative fills.
+  assert(source.includes("scriptevent superagent:shape pyramid"));
+  assert(source.includes("scriptevent superagent:shape disc"));
+  assert(source.includes("scriptevent superagent:shape circle"));
+  assert(source.includes("scriptevent superagent:shape staircase"));
+  // The old hourglass-producing per-layer relative pyramid fill is gone.
+  assert(!source.includes('"fill ~" + y + " ~" + y + " ~" + y'));
+  // BP computes the shape and routes the event.
+  assert(script.includes('"superagent:shape"'));
+  assert(script.includes("function handleShape"));
+  // Pyramid loop stops at the apex (no inverted fills growing back out).
+  assert(script.includes("y + y <= size - 1"));
+  // Anchored: movement is cleared before the origin snapshot.
+  const shapeBody = script.slice(script.indexOf("function handleShape"));
+  assert(shapeBody.indexOf("clearMovementState(owned)") < shapeBody.indexOf("Math.floor(owned.location.x)"));
+});
+
+test("character never stays buried inside blocks (self-rescue + step out of builds)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function rescueIfBuried"));
+  assert(script.includes("rescueIfBuried(superagent)"));
+  assert(script.includes("function stepOutOfShape"));
+  // Every shape steps out after building.
+  const count = (script.match(/stepOutOfShape\(owned, ox, oy, oz\)/g) || []).length;
+  assert(count >= 4, "each of the 4 shapes steps out, got " + count);
+});
+
+test("home commands always answer in chat (set / go / clear)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("เซ็ตบ้านแล้วที่"));
+  assert(script.includes("กลับบ้านแล้วที่"));
+  assert(script.includes("ล้างตำแหน่งบ้านแล้ว"));
 });

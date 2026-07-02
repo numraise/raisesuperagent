@@ -130,6 +130,9 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
+const SCRIPT_VERSION = "0.1.95";
+const EXTENSION_IMPORT_URL =
+  "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
 const LEGACY_VISIBLE_MARKER_ID = "minecraft:armor_stand";
 const DISPLAY_NAME = "superagent";
@@ -824,7 +827,7 @@ function announceReady(player) {
   try {
     if (!player.hasTag(READY_TAG)) {
       player.addTag(READY_TAG);
-      player.sendMessage("superagent 0.1.94 script active");
+      player.sendMessage("superagent " + SCRIPT_VERSION + " script active");
     }
   } catch (error) {
   }
@@ -1252,11 +1255,28 @@ function spinIfActive(superagent, tick) {
   }
 }
 
+// Self-rescue: if the character somehow ends up INSIDE a solid block (built
+// over itself, dug into, pushed), pop it to the nearest open spot. Testers
+// reported the character "building itself into a block and then unable to
+// break that block" — this guarantees it never stays buried.
+function rescueIfBuried(superagent) {
+  try {
+    const bx = Math.floor(superagent.location.x);
+    const by = Math.floor(superagent.location.y);
+    const bz = Math.floor(superagent.location.z);
+    if (blockIsObstacle(superagent.dimension, bx, by, bz)) {
+      teleportEntityOpen(superagent, { x: bx + 0.5, y: by, z: bz + 0.5 });
+    }
+  } catch (error) {
+  }
+}
+
 function tickSuperagent(player, superagent, tick) {
   if (tick % MAINTENANCE_TICKS === 0) {
     configureSuperagent(superagent, player);
     keepAlive(superagent);
     snapEntityToGridAlignment(superagent);
+    rescueIfBuried(superagent);
   }
   processMineQueue(superagent, tick);
   navStep(player, superagent);
@@ -1502,6 +1522,8 @@ function handleDebug(player) {
     all = player.dimension.getEntities({ type: SUPER_AGENT_ID });
   } catch (error) {
   }
+  const extVersion = extensionVersionByPlayer[player.name || "?"] || "old/unknown (no hello)";
+  sendFeedback(player, "§e[superagent debug] addon=" + SCRIPT_VERSION + " extension=" + extVersion);
   sendFeedback(player, "§e[superagent debug] count=" + all.length + " (you=" + (player.name || "?") + ")");
   for (const entity of all) {
     const guard = entity.hasTag(GUARD_TAG) ? " §c[guard]§7" : "";
@@ -1596,6 +1618,53 @@ function sendFeedback(player, text) {
     player.sendMessage(text);
   } catch (error) {
   }
+}
+
+// ---- extension version handshake -------------------------------------------
+// The MakeCode extension announces its version (scriptevent superagent:hello)
+// before its first command. The #1 recurring cause of "fixed bugs coming back"
+// was a tester on an OLD extension paired with a new .mcaddon — this makes the
+// mismatch impossible to miss: the addon warns in chat, in Thai, immediately.
+const extensionVersionByPlayer = {};
+const staleExtensionWarned = {};
+
+function handleHello(player, message) {
+  if (!player) {
+    return;
+  }
+  const version = (message || "").trim();
+  const name = player.name || "?";
+  extensionVersionByPlayer[name] = version || "unknown";
+  if (version === SCRIPT_VERSION) {
+    sendFeedback(player, "§a[superagent] extension " + version + " ตรงกับ addon แล้ว พร้อมใช้งาน");
+    return;
+  }
+  sendFeedback(
+    player,
+    "§c[superagent] คำเตือน: MakeCode extension เป็นเวอร์ชัน " + (version || "?") +
+    " แต่ addon เป็น " + SCRIPT_VERSION +
+    " — ผลทดสอบจะเพี้ยน! ลบ extension เดิมออกจากโปรเจกต์ แล้ว import ใหม่จาก: " + EXTENSION_IMPORT_URL
+  );
+}
+
+// Old extensions (before the handshake) never send hello. Warn once per player
+// the first time a command arrives without a preceding hello.
+function warnIfStaleExtension(event) {
+  const player = event.sourceEntity;
+  if (!isPlayerSource(player)) {
+    return;
+  }
+  const name = player.name || "?";
+  if (extensionVersionByPlayer[name] || staleExtensionWarned[name]) {
+    return;
+  }
+  staleExtensionWarned[name] = true;
+  sendFeedback(
+    player,
+    "§6[superagent] คำสั่งนี้มาจาก MakeCode extension รุ่นเก่า (ไม่มีเลขเวอร์ชัน) — " +
+    "addon ตอนนี้คือ " + SCRIPT_VERSION +
+    " โปรดลบ extension เดิมแล้ว import ใหม่จาก: " + EXTENSION_IMPORT_URL
+  );
 }
 
 // Resolve which player(s) a coordinate-carrying event belongs to. Prefer the
@@ -1892,7 +1961,7 @@ function handleSetHome(player, message) {
     player.setDynamicProperty(HOME_Y_PROP, Math.floor(source.y));
     player.setDynamicProperty(HOME_Z_PROP, Math.floor(source.z));
     playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
-    sendFeedback(player, "§aSuperagent: home set at " + Math.floor(source.x) + " " + Math.floor(source.y) + " " + Math.floor(source.z) + ".");
+    sendFeedback(player, "§aSuperagent: เซ็ตบ้านแล้วที่ " + Math.floor(source.x) + " " + Math.floor(source.y) + " " + Math.floor(source.z));
   } catch (error) {
   }
 }
@@ -1922,6 +1991,7 @@ function handleGoHome(player, message) {
   try {
     teleportEntityOpen(owned, { x, y, z });
     playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
+    sendFeedback(player, "§aSuperagent: กลับบ้านแล้วที่ " + x + " " + y + " " + z);
   } catch (error) {
   }
 }
@@ -1935,6 +2005,7 @@ function handleClearHome(player) {
     if (owned) {
       playDogSound(owned, "happy", { volume: 0.25, pitch: 1.25 });
     }
+    sendFeedback(player, "§aSuperagent: ล้างตำแหน่งบ้านแล้ว");
   } catch (error) {
   }
 }
@@ -2163,6 +2234,136 @@ function handleBuild(player, message) {
   runCommandSafe(owned.dimension, `execute positioned ${sx} ${sy} ${sz} run ${cmd}`);
 }
 
+// ---- exact shapes (pyramid / disc / circle / staircase) ---------------------
+// Shapes are computed here from ONE snapshot of the real entity position and
+// placed with ABSOLUTE coordinates. The old approach (the extension streaming
+// many "~"-relative fills) had two failure modes seen in tester reports:
+// (a) pyramid became an hourglass — fill normalizes inverted coordinates, so
+//     layers above the midpoint grew back outward; and
+// (b) shapes tore apart if the character moved between commands, because every
+//     command re-read the entity position as its origin.
+function shapeClampN(v, min, max, def) {
+  let n = Number(v);
+  if (!Number.isFinite(n)) {
+    n = def;
+  }
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+// After building a shape the origin block is usually inside the shape, which
+// buried the character in its own build. Pop it to the nearest open spot.
+function stepOutOfShape(owned, ox, oy, oz) {
+  try {
+    if (blockIsObstacle(owned.dimension, Math.floor(owned.location.x), Math.floor(owned.location.y), Math.floor(owned.location.z))) {
+      teleportEntityOpen(owned, { x: ox + 0.5, y: oy, z: oz + 0.5 });
+    }
+  } catch (error) {
+  }
+}
+
+function handleShape(player, message) {
+  const owned = ownedSuperagentForEvent(player);
+  if (!owned) {
+    sendFeedback(player, "§eSuperagent: spawn me first to build.");
+    return;
+  }
+  const parts = (message || "").trim().split(/\s+/);
+  const kind = (parts[0] || "").toLowerCase();
+  const id = parts[1] || "stone";
+  // Anchor the whole shape to one origin: stop movement first.
+  clearMovementState(owned);
+  const dim = owned.dimension;
+  const ox = Math.floor(owned.location.x);
+  const oy = Math.floor(owned.location.y);
+  const oz = Math.floor(owned.location.z);
+
+  if (kind === "pyramid") {
+    const size = shapeClampN(parts[2], 1, 16, 4);
+    // Solid stepped pyramid: layer y spans (y..size-1-y) and the loop STOPS at
+    // the apex (y + y <= size - 1) instead of running past it.
+    for (let y = 0; y + y <= size - 1; y++) {
+      runCommandSafe(
+        dim,
+        "fill " + (ox + y) + " " + (oy + y) + " " + (oz + y) + " " +
+        (ox + size - 1 - y) + " " + (oy + y) + " " + (oz + size - 1 - y) + " " + id
+      );
+    }
+    stepOutOfShape(owned, ox, oy, oz);
+    sendFeedback(player, "§aSuperagent: สร้างพีระมิดขนาด " + size + " เสร็จแล้ว");
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
+    return;
+  }
+
+  if (kind === "disc") {
+    const radius = shapeClampN(parts[2], 1, 16, 4);
+    for (let x = -radius; x <= radius; x++) {
+      const zmax = Math.floor(Math.sqrt(radius * radius - x * x));
+      runCommandSafe(
+        dim,
+        "fill " + (ox + x) + " " + oy + " " + (oz - zmax) + " " +
+        (ox + x) + " " + oy + " " + (oz + zmax) + " " + id
+      );
+    }
+    stepOutOfShape(owned, ox, oy, oz);
+    sendFeedback(player, "§aSuperagent: สร้างวงกลมทึบรัศมี " + radius + " เสร็จแล้ว");
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
+    return;
+  }
+
+  if (kind === "circle") {
+    const radius = shapeClampN(parts[2], 1, 16, 4);
+    let cx = radius;
+    let cz = 0;
+    let err = 1 - radius;
+    const put = (dx, dz) => {
+      runCommandSafe(dim, "setblock " + (ox + dx) + " " + oy + " " + (oz + dz) + " " + id);
+    };
+    while (cx >= cz) {
+      put(cx, cz); put(-cx, cz); put(cx, -cz); put(-cx, -cz);
+      put(cz, cx); put(-cz, cx); put(cz, -cx); put(-cz, -cx);
+      cz++;
+      if (err < 0) {
+        err += 2 * cz + 1;
+      } else {
+        cx--;
+        err += 2 * (cz - cx) + 1;
+      }
+    }
+    stepOutOfShape(owned, ox, oy, oz);
+    sendFeedback(player, "§aSuperagent: สร้างวงกลมรัศมี " + radius + " เสร็จแล้ว");
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
+    return;
+  }
+
+  if (kind === "staircase") {
+    const dir = (parts[2] || "north").toLowerCase();
+    const steps = shapeClampN(parts[3], 1, 32, 8);
+    for (let i = 0; i < steps; i++) {
+      let x = ox;
+      let y = oy;
+      let z = oz;
+      if (dir === "up") {
+        y = oy + i;
+      } else if (dir === "down") {
+        y = oy - i;
+      } else if (dir === "east") {
+        x = ox + i; y = oy + i;
+      } else if (dir === "west") {
+        x = ox - i; y = oy + i;
+      } else if (dir === "south") {
+        z = oz + i; y = oy + i;
+      } else {
+        z = oz - i; y = oy + i;
+      }
+      runCommandSafe(dim, "setblock " + x + " " + y + " " + z + " " + id);
+    }
+    stepOutOfShape(owned, ox, oy, oz);
+    sendFeedback(player, "§aSuperagent: สร้างบันได " + steps + " ขั้น (" + dir + ") เสร็จแล้ว");
+    playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
+    return;
+  }
+}
+
 // Clear a box of air centered (horizontally) on the REAL superagent entity, from
 // its feet upward. Runs at the actual entity so it works regardless of how the
 // character was spawned.
@@ -2319,6 +2520,23 @@ try {
 
 try {
 system.afterEvents.scriptEventReceive.subscribe((event) => {
+  if (event.id === "superagent:hello") {
+    if (isPlayerSource(event.sourceEntity)) {
+      handleHello(event.sourceEntity, event.message);
+    }
+    return;
+  }
+  // Any superagent command arriving before a hello means an OLD extension.
+  if (typeof event.id === "string" && event.id.indexOf("superagent:") === 0) {
+    warnIfStaleExtension(event);
+  }
+  if (event.id === "superagent:shape") {
+    const player = event.sourceEntity;
+    if (isPlayerSource(player)) {
+      handleShape(player, event.message);
+    }
+    return;
+  }
   if (event.id === "superagent:combat") {
     handleCombatToggle(event.message);
     return;

@@ -209,7 +209,28 @@ namespace superagent {
         }
     }
 
+    // Version handshake: tell the behavior pack which extension version is
+    // running, once, before the first real command. The behavior pack compares
+    // this against its own version and warns the tester in chat when they are
+    // testing on a stale extension — the #1 recurring cause of "fixed bugs
+    // coming back" was an old extension paired with a new .mcaddon.
+    const SUPERAGENT_EXT_VERSION = "0.1.95"
+    let versionHelloSent = false
+
+    function sendVersionHello() {
+        if (versionHelloSent) {
+            return
+        }
+        versionHelloSent = true
+        mobs.execute(
+            mobs.target(LOCAL_PLAYER),
+            agent.getPosition(),
+            "scriptevent superagent:hello " + SUPERAGENT_EXT_VERSION
+        )
+    }
+
     function runAtAgent(command: string): boolean {
+        sendVersionHello()
         return mobs.execute(mobs.target(LOCAL_PLAYER), agent.getPosition(), command)
     }
 
@@ -1494,10 +1515,12 @@ namespace superagent {
     //% group="Build"
     export function buildPyramid(block: SuperagentBlock, size: number) {
         size = clamp(size, 1, 16)
-        let id = blockId(block)
-        for (let y = 0; y < size; y++) {
-            runBuildAtSuperagent("fill ~" + y + " ~" + y + " ~" + y + " ~" + (size - 1 - y) + " ~" + y + " ~" + (size - 1 - y) + " " + id)
-        }
+        // Geometry is computed behavior-pack side from ONE snapshot of the real
+        // entity position. The old per-layer relative fills produced an hourglass
+        // (fill normalizes inverted coordinates, so upper layers grew back out)
+        // and tore apart if the character drifted between commands.
+        ensureCharacter()
+        runAtAgent("scriptevent superagent:shape pyramid " + blockId(block) + " " + size)
     }
 
     /**
@@ -1508,22 +1531,22 @@ namespace superagent {
     //% group="Build"
     export function buildStaircase(block: SuperagentBlock, direction: SuperagentStairDirection, steps: number) {
         steps = clamp(steps, 1, 32)
-        let id = blockId(block)
-        for (let i = 0; i < steps; i++) {
-            if (direction == SuperagentStairDirection.Up) {
-                runBuildAtSuperagent("setblock ~ ~" + i + " ~ " + id)
-            } else if (direction == SuperagentStairDirection.Down) {
-                runBuildAtSuperagent("setblock ~ ~" + (0 - i) + " ~ " + id)
-            } else if (direction == SuperagentStairDirection.East) {
-                runBuildAtSuperagent("setblock ~" + i + " ~" + i + " ~ " + id)
-            } else if (direction == SuperagentStairDirection.South) {
-                runBuildAtSuperagent("setblock ~ ~" + i + " ~" + i + " " + id)
-            } else if (direction == SuperagentStairDirection.West) {
-                runBuildAtSuperagent("setblock ~" + (0 - i) + " ~" + i + " ~ " + id)
-            } else {
-                runBuildAtSuperagent("setblock ~ ~" + i + " ~" + (0 - i) + " " + id)
-            }
+        let dir = "north"
+        if (direction == SuperagentStairDirection.East) {
+            dir = "east"
+        } else if (direction == SuperagentStairDirection.South) {
+            dir = "south"
+        } else if (direction == SuperagentStairDirection.West) {
+            dir = "west"
+        } else if (direction == SuperagentStairDirection.Up) {
+            dir = "up"
+        } else if (direction == SuperagentStairDirection.Down) {
+            dir = "down"
         }
+        // Built behavior-pack side from ONE snapshot of the real entity position
+        // so the whole staircase is anchored to the same origin.
+        ensureCharacter()
+        runAtAgent("scriptevent superagent:shape staircase " + blockId(block) + " " + dir + " " + steps)
     }
 
     function plotBlock(dx: number, dz: number, id: string) {
@@ -1538,27 +1561,9 @@ namespace superagent {
     //% group="Build"
     export function buildCircle(block: SuperagentBlock, radius: number) {
         radius = clamp(radius, 1, 16)
-        let id = blockId(block)
-        let x = radius
-        let z = 0
-        let err = 1 - radius
-        while (x >= z) {
-            plotBlock(x, z, id)
-            plotBlock(0 - x, z, id)
-            plotBlock(x, 0 - z, id)
-            plotBlock(0 - x, 0 - z, id)
-            plotBlock(z, x, id)
-            plotBlock(0 - z, x, id)
-            plotBlock(z, 0 - x, id)
-            plotBlock(0 - z, 0 - x, id)
-            z++
-            if (err < 0) {
-                err += 2 * z + 1
-            } else {
-                x--
-                err += 2 * (z - x) + 1
-            }
-        }
+        // Built behavior-pack side from ONE snapshot of the real entity position.
+        ensureCharacter()
+        runAtAgent("scriptevent superagent:shape circle " + blockId(block) + " " + radius)
     }
 
     /**
@@ -1569,11 +1574,11 @@ namespace superagent {
     //% group="Build"
     export function buildDisc(block: SuperagentBlock, radius: number) {
         radius = clamp(radius, 1, 16)
-        let id = blockId(block)
-        for (let x = 0 - radius; x <= radius; x++) {
-            let zmax = Math.floor(Math.sqrt(radius * radius - x * x))
-            runBuildAtSuperagent("fill ~" + x + " ~ ~-" + zmax + " ~" + x + " ~ ~" + zmax + " " + id)
-        }
+        // Built behavior-pack side from ONE snapshot of the real entity position.
+        // The old per-column relative fills tore the disc apart when the origin
+        // moved between commands.
+        ensureCharacter()
+        runAtAgent("scriptevent superagent:shape disc " + blockId(block) + " " + radius)
     }
 
     /**
