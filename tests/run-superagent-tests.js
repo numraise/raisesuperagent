@@ -1635,7 +1635,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.98"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.99"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1644,7 +1644,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.98"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.99"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1755,4 +1755,19 @@ test("lightning strike always does something visible (front-strike fallback + fe
   assert(fn.includes("cardinalOffsetFromYaw"));
   assert((fn.match(/spawnEntity\("minecraft:lightning_bolt"/g) || []).length >= 2);
   assert((fn.match(/sendFeedback\(/g) || []).length >= 2);
+});
+
+test("staircase is a real diagonal staircase in ALL directions (up/down follow facing)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  const body = script.slice(script.indexOf('if (kind === "staircase")'));
+  const fn = body.slice(0, body.indexOf('sendFeedback'));
+  // up/down no longer build a vertical pillar: they climb along the facing.
+  assert(fn.includes("cardinalOffsetFromYaw(entityRotation(owned).y)"));
+  assert(fn.includes('const rise = dir === "down" ? -1 : 1'));
+  // Diagonal placement: forward AND vertical per step.
+  assert(fn.includes("ox + f.x * i"));
+  assert(fn.includes("oy + rise * i"));
+  assert(fn.includes("oz + f.z * i"));
+  // Headroom is cleared so the stair is walkable.
+  assert(fn.includes('" air"'));
 });

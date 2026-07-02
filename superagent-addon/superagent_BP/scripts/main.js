@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.98";
+const SCRIPT_VERSION = "0.1.99";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -2435,30 +2435,30 @@ function handleShape(player, message) {
   if (kind === "staircase") {
     const dir = (parts[2] || "north").toLowerCase();
     const steps = shapeClampN(parts[3], 1, 32, 8);
-    let minX = ox, maxX = ox, minZ = oz, maxZ = oz;
-    if (dir === "east") maxX = ox + steps - 1;
-    else if (dir === "west") minX = ox - steps + 1;
-    else if (dir === "south") maxZ = oz + steps - 1;
-    else if (dir === "north") minZ = oz - steps + 1;
+    // Every direction builds a REAL diagonal staircase (1 block forward + 1
+    // block up/down per step). north/south/east/west climb upward toward that
+    // compass direction; "up"/"down" climb/descend in the direction the
+    // character is FACING. The old "up"/"down" built a plain vertical pillar,
+    // which testers rightly reported as "not a staircase".
+    let f;
+    if (dir === "east") f = { x: 1, z: 0 };
+    else if (dir === "west") f = { x: -1, z: 0 };
+    else if (dir === "south") f = { x: 0, z: 1 };
+    else if (dir === "north") f = { x: 0, z: -1 };
+    else f = cardinalOffsetFromYaw(entityRotation(owned).y); // up / down: follow facing
+    const rise = dir === "down" ? -1 : 1;
+    const minX = Math.min(ox, ox + f.x * (steps - 1));
+    const maxX = Math.max(ox, ox + f.x * (steps - 1));
+    const minZ = Math.min(oz, oz + f.z * (steps - 1));
+    const maxZ = Math.max(oz, oz + f.z * (steps - 1));
     moveAsideForShape(owned, minX, maxX, oy, minZ, maxZ);
     for (let i = 0; i < steps; i++) {
-      let x = ox;
-      let y = oy;
-      let z = oz;
-      if (dir === "up") {
-        y = oy + i;
-      } else if (dir === "down") {
-        y = oy - i;
-      } else if (dir === "east") {
-        x = ox + i; y = oy + i;
-      } else if (dir === "west") {
-        x = ox - i; y = oy + i;
-      } else if (dir === "south") {
-        z = oz + i; y = oy + i;
-      } else {
-        z = oz - i; y = oy + i;
-      }
+      const x = ox + f.x * i;
+      const y = oy + rise * i;
+      const z = oz + f.z * i;
       runCommandSafe(dim, "setblock " + x + " " + y + " " + z + " " + id);
+      // Clear headroom above each step so the staircase is walkable.
+      runCommandSafe(dim, "fill " + x + " " + (y + 1) + " " + z + " " + x + " " + (y + 2) + " " + z + " air");
     }
     stepOutOfShape(owned, ox, oy, oz);
     sendFeedback(player, "§aSuperagent: สร้างบันได " + steps + " ขั้น (" + dir + ") เสร็จแล้ว");
