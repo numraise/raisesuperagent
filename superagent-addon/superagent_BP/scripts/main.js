@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.97";
+const SCRIPT_VERSION = "0.1.98";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1811,11 +1811,27 @@ function handleLightning(player) {
   const hostiles = dimension.getEntities({ location: anchor.location, maxDistance: 14 }).filter(isAttackTarget);
   const target = closestEntity(hostiles, anchor.location);
   if (!target) {
+    // No hostile nearby: strike 3 blocks in front of the character anyway so
+    // the block never does "nothing" silently.
+    const off = cardinalOffsetFromYaw(entityRotation(anchor).y);
+    const spot = {
+      x: anchor.location.x + off.x * 3,
+      y: anchor.location.y,
+      z: anchor.location.z + off.z * 3
+    };
+    try {
+      dimension.spawnEntity("minecraft:lightning_bolt", spot);
+      playDogSound(anchor, "alert", { volume: 0.6, pitch: 0.85 });
+      sendFeedback(player, "§eSuperagent: ไม่พบมอนสเตอร์ใกล้ๆ เลยผ่าตรงหน้าแทน");
+    } catch (error) {
+      sendFeedback(player, "§eSuperagent: เรียกฟ้าผ่าไม่สำเร็จในโลกนี้");
+    }
     return;
   }
   try {
     dimension.spawnEntity("minecraft:lightning_bolt", target.location);
     playDogSound(anchor, "alert", { volume: 0.6, pitch: 0.85 });
+    sendFeedback(player, "§aSuperagent: ฟ้าผ่าใส่เป้าหมายแล้ว!");
   } catch (error) {
   }
 }
@@ -2296,6 +2312,49 @@ function stepOutOfShape(owned, ox, oy, oz) {
   }
 }
 
+// Move the character to an open, GROUNDED spot just outside the shape's
+// footprint BEFORE building. Building the origin block into the character
+// buried it, and the pop-out rescue could land it ON TOP of the shape — the
+// next build then started from that wrong origin (floating staircases).
+function moveAsideForShape(owned, minX, maxX, oy, minZ, maxZ) {
+  const dim = owned.dimension;
+  const midX = Math.floor((minX + maxX) / 2);
+  const midZ = Math.floor((minZ + maxZ) / 2);
+  const spots = [
+    { x: minX - 1, z: midZ }, { x: maxX + 1, z: midZ },
+    { x: midX, z: minZ - 1 }, { x: midX, z: maxZ + 1 },
+    { x: minX - 1, z: minZ - 1 }, { x: maxX + 1, z: maxZ + 1 },
+    { x: minX - 1, z: maxZ + 1 }, { x: maxX + 1, z: minZ - 1 }
+  ];
+  const yaw = snapYawToCardinal(entityRotation(owned).y);
+  for (const s of spots) {
+    for (let dy = 0; dy >= -3; dy--) {
+      const y = oy + dy;
+      const open = { x: s.x + 0.5, y: y, z: s.z + 0.5 };
+      if (locationIsOpen(dim, open) && blockIsObstacle(dim, s.x, y - 1, s.z)) {
+        try {
+          owned.teleport(open, { rotation: { x: 0, y: yaw } });
+        } catch (error) {
+        }
+        return;
+      }
+    }
+  }
+}
+
+// Drop the origin down to the ground (max 3 blocks) so shapes never start in
+// mid-air when the character happens to be slightly airborne (gliding).
+function groundedY(dim, x, y, z) {
+  let gy = y;
+  for (let i = 0; i < 3; i++) {
+    if (blockIsObstacle(dim, x, gy - 1, z)) {
+      return gy;
+    }
+    gy--;
+  }
+  return y;
+}
+
 function handleShape(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
@@ -2309,11 +2368,12 @@ function handleShape(player, message) {
   clearMovementState(owned);
   const dim = owned.dimension;
   const ox = Math.floor(owned.location.x);
-  const oy = Math.floor(owned.location.y);
   const oz = Math.floor(owned.location.z);
+  const oy = groundedY(dim, ox, Math.floor(owned.location.y), oz);
 
   if (kind === "pyramid") {
     const size = shapeClampN(parts[2], 1, 16, 4);
+    moveAsideForShape(owned, ox, ox + size - 1, oy, oz, oz + size - 1);
     // Solid stepped pyramid: layer y spans (y..size-1-y) and the loop STOPS at
     // the apex (y + y <= size - 1) instead of running past it.
     for (let y = 0; y + y <= size - 1; y++) {
@@ -2331,6 +2391,7 @@ function handleShape(player, message) {
 
   if (kind === "disc") {
     const radius = shapeClampN(parts[2], 1, 16, 4);
+    moveAsideForShape(owned, ox - radius, ox + radius, oy, oz - radius, oz + radius);
     for (let x = -radius; x <= radius; x++) {
       const zmax = Math.floor(Math.sqrt(radius * radius - x * x));
       runCommandSafe(
@@ -2347,6 +2408,7 @@ function handleShape(player, message) {
 
   if (kind === "circle") {
     const radius = shapeClampN(parts[2], 1, 16, 4);
+    moveAsideForShape(owned, ox - radius, ox + radius, oy, oz - radius, oz + radius);
     let cx = radius;
     let cz = 0;
     let err = 1 - radius;
@@ -2373,6 +2435,12 @@ function handleShape(player, message) {
   if (kind === "staircase") {
     const dir = (parts[2] || "north").toLowerCase();
     const steps = shapeClampN(parts[3], 1, 32, 8);
+    let minX = ox, maxX = ox, minZ = oz, maxZ = oz;
+    if (dir === "east") maxX = ox + steps - 1;
+    else if (dir === "west") minX = ox - steps + 1;
+    else if (dir === "south") maxZ = oz + steps - 1;
+    else if (dir === "north") minZ = oz - steps + 1;
+    moveAsideForShape(owned, minX, maxX, oy, minZ, maxZ);
     for (let i = 0; i < steps; i++) {
       let x = ox;
       let y = oy;

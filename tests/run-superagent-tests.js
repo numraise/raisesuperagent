@@ -1635,7 +1635,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.97"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.98"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1644,7 +1644,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.97"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.98"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1731,4 +1731,28 @@ test("mine forward digs out of the CHARACTER's front, not the player's camera", 
   assert(script.includes('if (y === 0) return { x: 0, z: 1 }'));
   assert(script.includes('if (y === 180 || y === -180) return { x: 0, z: -1 }'));
   assert(script.includes('if (y === -90) return { x: 1, z: 0 }'));
+});
+
+test("character steps aside before building shapes (never buried, never popped on top)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function moveAsideForShape"));
+  // Every shape moves the character outside its footprint BEFORE building.
+  const count = (script.match(/moveAsideForShape\(owned, /g) || []).length;
+  assert(count >= 4, "each of the 4 shapes moves aside, got " + count);
+  // Aside spot must be grounded (solid block underneath) so it cannot float.
+  assert(script.includes("blockIsObstacle(dim, s.x, y - 1, s.z)"));
+  // Shape origin drops to the ground if the character was slightly airborne.
+  assert(script.includes("function groundedY"));
+  assert(script.includes("groundedY(dim, ox, Math.floor(owned.location.y), oz)"));
+});
+
+test("lightning strike always does something visible (front-strike fallback + feedback)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  const body = script.slice(script.indexOf("function handleLightning"));
+  const endOfFn = body.indexOf("function handleBlast");
+  const fn = body.slice(0, endOfFn);
+  // No-target path still strikes (in front of the character) and reports.
+  assert(fn.includes("cardinalOffsetFromYaw"));
+  assert((fn.match(/spawnEntity\("minecraft:lightning_bolt"/g) || []).length >= 2);
+  assert((fn.match(/sendFeedback\(/g) || []).length >= 2);
 });
