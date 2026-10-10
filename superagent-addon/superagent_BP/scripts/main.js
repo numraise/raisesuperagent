@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.103";
+const SCRIPT_VERSION = "0.1.104";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1169,6 +1169,8 @@ function navStep(player, superagent) {
   const next = stepToward(superagent.location, target, MOVE_SPEED);
   if (next.arrived) {
     if (!follow) {
+      // Settle neatly on the destination block center, then stop.
+      teleportEntityOpen(superagent, target);
       clearNavTarget(superagent);
     }
     return;
@@ -1180,10 +1182,17 @@ function navStep(player, superagent) {
     }
     return;
   }
+  // Mid-glide teleports must use the RAW fractional position. Routing them
+  // through teleportEntityOpen snapped every step back to the center of the
+  // CURRENT block (gridAnchorLocation), and since one step (MOVE_SPEED) is
+  // less than a block, the character "walked in place" forever.
   try {
-    teleportEntityOpen(superagent, { x: next.x, y: next.y, z: next.z }, {
-      rotation: cardinalRotationFromTo(superagent.location, target)
-    });
+    superagent.teleport(
+      { x: next.x, y: next.y, z: next.z },
+      gridAlignedTeleportOptions(superagent, {
+        rotation: cardinalRotationFromTo(superagent.location, target)
+      })
+    );
   } catch (error) {
   }
 }
@@ -1403,10 +1412,15 @@ function guardStep(player, guard, index, tick) {
   const next = stepToward(guard.location, target, GUARD_SPEED);
   const guardBlocked = blockIsObstacle(guard.dimension, Math.floor(next.x), Math.floor(next.y), Math.floor(next.z));
   if (!next.arrived && !isFrozen() && !guardBlocked) {
+    // Raw fractional teleport mid-glide (teleportEntityOpen snaps to block
+    // centers, which made sub-block steps walk in place).
     try {
-      teleportEntityOpen(guard, { x: next.x, y: next.y, z: next.z }, {
-        rotation: cardinalRotationFromTo(guard.location, target)
-      });
+      guard.teleport(
+        { x: next.x, y: next.y, z: next.z },
+        gridAlignedTeleportOptions(guard, {
+          rotation: cardinalRotationFromTo(guard.location, target)
+        })
+      );
     } catch (error) {
     }
   }
