@@ -1415,15 +1415,31 @@ test("superagent entity is a visible one-block programmable character", () => {
   assert.strictEqual(components["minecraft:collision_box"].height, 1.0);
 });
 
-test("superagent resource pack renders the character as exactly one block cube", () => {
+test("superagent resource pack renders the character as a cute wolf (head, body, 4 legs, tail, ears)", () => {
   const geometry = readJson(path.join(ADDON, "superagent_RP", "models", "entity", "superagent.geo.json"));
-  const description = geometry["minecraft:geometry"][0].description;
-  const cubes = geometry["minecraft:geometry"][0].bones[0].cubes;
-  assert.strictEqual(description.visible_bounds_width, 1);
-  assert.strictEqual(description.visible_bounds_height, 1);
-  assert.strictEqual(cubes.length, 1);
-  assert.deepStrictEqual(cubes[0].origin, [-8, 0, -8]);
-  assert.deepStrictEqual(cubes[0].size, [16, 16, 16]);
+  const geo = geometry["minecraft:geometry"][0];
+  const description = geo.description;
+  assert.strictEqual(description.identifier, "geometry.superagent");
+  assert.strictEqual(description.texture_width, 64);
+  assert.strictEqual(description.texture_height, 32);
+  const bones = {};
+  for (const bone of geo.bones) {
+    bones[bone.name] = bone;
+  }
+  // Rig has the bones an animation would need.
+  assert(bones.root && bones.body && bones.head && bones.tail);
+  assert.strictEqual(bones.body.cubes.length, 5); // torso + 4 legs
+  assert.strictEqual(bones.head.cubes.length, 4); // head + snout + 2 ears
+  assert.strictEqual(bones.tail.cubes.length, 1);
+  // Tail is raised (rotated), not a straight block.
+  assert(Array.isArray(bones.tail.rotation) && bones.tail.rotation[0] !== 0);
+  // All cubes carry UVs inside the 64x32 sheet.
+  for (const bone of geo.bones) {
+    for (const cube of bone.cubes || []) {
+      assert(cube.uv[0] >= 0 && cube.uv[0] < 64);
+      assert(cube.uv[1] >= 0 && cube.uv[1] < 32);
+    }
+  }
 });
 
 test("superagent resource pack defines visible aura and attack particles", () => {
@@ -1635,7 +1651,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.99"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.100"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1644,7 +1660,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.99"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.100"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));

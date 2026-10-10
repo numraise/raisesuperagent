@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.99";
+const SCRIPT_VERSION = "0.1.100";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
