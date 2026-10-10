@@ -22,12 +22,12 @@
       },
       "scripts": {
         "animate": [
-          { "walk": "q.property('superagent:action') == 'walk'" },
-          { "idle": "q.property('superagent:action') == 'idle'" },
-          { "mine": "q.property('superagent:action') == 'mine'" },
-          { "build": "q.property('superagent:action') == 'build'" },
-          { "combat": "q.property('superagent:action') == 'combat'" },
-          { "happy": "q.property('superagent:action') == 'happy'" }
+          { "idle": "q.mark_variant == 0" },
+          { "walk": "q.mark_variant == 1" },
+          { "mine": "q.mark_variant == 2" },
+          { "build": "q.mark_variant == 3" },
+          { "combat": "q.mark_variant == 4" },
+          { "happy": "q.mark_variant == 5" }
         ]
       },
       "render_controllers": ["controller.render.superagent"]

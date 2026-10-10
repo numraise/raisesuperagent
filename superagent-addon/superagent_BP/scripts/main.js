@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.105";
+const SCRIPT_VERSION = "0.1.106";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1316,6 +1316,7 @@ function markBuilding(superagent, ms) {
 }
 
 const lastTickPos = {};
+const lastActionApplied = {};
 
 function updateMovingProperty(superagent, tick) {
   const id = superagent.id;
@@ -1361,6 +1362,16 @@ function updateMovingProperty(superagent, tick) {
       superagent.setProperty("superagent:action", action);
     }
   } catch (error) {
+  }
+  // Animations are driven by mark_variant (q.mark_variant client-side), set
+  // via entity events — the oldest, most compatible Bedrock mechanism.
+  // q.property-based animate conditions proved unreliable on Education.
+  if (lastActionApplied[id] !== action) {
+    lastActionApplied[id] = action;
+    try {
+      superagent.triggerEvent("superagent:action_" + action);
+    } catch (error) {
+    }
   }
 }
 

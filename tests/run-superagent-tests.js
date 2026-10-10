@@ -1660,7 +1660,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.105"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.106"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1669,7 +1669,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.105"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.106"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1818,7 +1818,7 @@ test("wolf has walk and idle animations driven by a client-synced moving propert
   assert.strictEqual(desc.animations.walk, "animation.superagent.walk");
   assert.strictEqual(desc.animations.idle, "animation.superagent.idle");
   const animate = JSON.stringify(desc.scripts.animate);
-  assert(animate.includes("superagent:action") || animate.includes("superagent:moving"));
+  assert(animate.includes("mark_variant") || animate.includes("superagent:moving"));
 
   // BP entity declares the property with client_sync so the client can read it.
   const bp = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
@@ -1849,7 +1849,7 @@ test("wolf has mine/build/combat/happy action animations driven by an enum prope
     assert.strictEqual(desc.animations[name], "animation.superagent." + name);
   }
   const animate = JSON.stringify(desc.scripts.animate);
-  assert(animate.includes("superagent:action"));
+  assert(animate.includes("mark_variant"));
 
   const bp = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
   const prop = bp["minecraft:entity"].description.properties["superagent:action"];
@@ -1903,4 +1903,25 @@ test("walk animation plays only when the character actually moved (idle stands s
   assert(fn.includes("lastTickPos"));
   assert(fn.includes("dx * dx + dy * dy + dz * dz"));
   assert(!fn.includes("FOLLOW_WALK_PROP) === true ||"));
+});
+
+test("action animations are driven by mark_variant events (Education-safe)", () => {
+  const bp = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
+  const ent = bp["minecraft:entity"];
+  assert.strictEqual(ent.components["minecraft:mark_variant"].value, 0);
+  const actions = ["idle", "walk", "mine", "build", "combat", "happy"];
+  actions.forEach((name, i) => {
+    const g = ent.component_groups["superagent:action_" + name];
+    assert(g && g["minecraft:mark_variant"].value === i, name);
+    const ev = ent.events["superagent:action_" + name];
+    assert(ev && ev.add.component_groups.includes("superagent:action_" + name));
+    assert.strictEqual(ev.remove.component_groups.length, actions.length - 1);
+  });
+  const client = readJson(path.join(ADDON, "superagent_RP", "entity", "superagent.entity.json"));
+  const animate = JSON.stringify(client["minecraft:client_entity"].description.scripts.animate);
+  for (let i = 0; i < 6; i++) {
+    assert(animate.includes("q.mark_variant == " + i));
+  }
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes('triggerEvent("superagent:action_" + action)'));
 });

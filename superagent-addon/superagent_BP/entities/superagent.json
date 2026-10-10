@@ -71,6 +71,139 @@
       "minecraft:persistent": {},
       "minecraft:scale": {
         "value": 1.0
+      },
+      "minecraft:mark_variant": {
+        "value": 0
+      }
+    },
+    "component_groups": {
+      "superagent:action_idle": {
+        "minecraft:mark_variant": {
+          "value": 0
+        }
+      },
+      "superagent:action_walk": {
+        "minecraft:mark_variant": {
+          "value": 1
+        }
+      },
+      "superagent:action_mine": {
+        "minecraft:mark_variant": {
+          "value": 2
+        }
+      },
+      "superagent:action_build": {
+        "minecraft:mark_variant": {
+          "value": 3
+        }
+      },
+      "superagent:action_combat": {
+        "minecraft:mark_variant": {
+          "value": 4
+        }
+      },
+      "superagent:action_happy": {
+        "minecraft:mark_variant": {
+          "value": 5
+        }
+      }
+    },
+    "events": {
+      "superagent:action_idle": {
+        "remove": {
+          "component_groups": [
+            "superagent:action_walk",
+            "superagent:action_mine",
+            "superagent:action_build",
+            "superagent:action_combat",
+            "superagent:action_happy"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "superagent:action_idle"
+          ]
+        }
+      },
+      "superagent:action_walk": {
+        "remove": {
+          "component_groups": [
+            "superagent:action_idle",
+            "superagent:action_mine",
+            "superagent:action_build",
+            "superagent:action_combat",
+            "superagent:action_happy"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "superagent:action_walk"
+          ]
+        }
+      },
+      "superagent:action_mine": {
+        "remove": {
+          "component_groups": [
+            "superagent:action_idle",
+            "superagent:action_walk",
+            "superagent:action_build",
+            "superagent:action_combat",
+            "superagent:action_happy"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "superagent:action_mine"
+          ]
+        }
+      },
+      "superagent:action_build": {
+        "remove": {
+          "component_groups": [
+            "superagent:action_idle",
+            "superagent:action_walk",
+            "superagent:action_mine",
+            "superagent:action_combat",
+            "superagent:action_happy"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "superagent:action_build"
+          ]
+        }
+      },
+      "superagent:action_combat": {
+        "remove": {
+          "component_groups": [
+            "superagent:action_idle",
+            "superagent:action_walk",
+            "superagent:action_mine",
+            "superagent:action_build",
+            "superagent:action_happy"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "superagent:action_combat"
+          ]
+        }
+      },
+      "superagent:action_happy": {
+        "remove": {
+          "component_groups": [
+            "superagent:action_idle",
+            "superagent:action_walk",
+            "superagent:action_mine",
+            "superagent:action_build",
+            "superagent:action_combat"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "superagent:action_happy"
+          ]
+        }
       }
     }
   }
