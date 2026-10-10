@@ -955,7 +955,9 @@ test("superagent script faces a direction on command", () => {
 // can't re-rotate the character toward a travel target right after.
 test("superagent face clears movement so it sticks on the first run", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  const fn = script.match(/function handleFace[\s\S]*?\n}/)[0];
+  // The rotation work moved into executeFaceOp (face is queued with walks now),
+  // but the movement-clearing guarantee is the same.
+  const fn = script.match(/function executeFaceOp[\s\S]*?\n}/)[0];
   assert(fn.includes("FOLLOW_WALK_PROP"));
   assert(fn.includes("clearNavTarget(owned)"));
   assert(fn.includes("clearPath(owned)"));
@@ -1658,7 +1660,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.102"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.103"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1667,7 +1669,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.102"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.103"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1861,4 +1863,22 @@ test("wolf has mine/build/combat/happy action animations driven by an enum prope
   // Builds and homes celebrate; mining drives the mine pose from the queue.
   assert((script.match(/markHappy\(owned\)/g) || []).length >= 5);
   assert(script.includes("markBuilding(owned)"));
+});
+
+test("move walks visibly (queued glide) instead of teleporting, keeping program order", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  // move enqueues a walk op; the glide plays the walk animation.
+  assert(script.includes('push({ mode: "walk", off: off, count: count })'));
+  assert(script.includes("function executeWalkOp"));
+  assert(script.includes("setNavTarget(owned, { x: cx + 0.5, y: cy, z: cz + 0.5 })"));
+  // face is queued too, so move -> face -> mine still runs in order.
+  assert(script.includes('push({ mode: "face", dir: dir })'));
+  assert(script.includes("function executeFaceOp"));
+  // The queue waits for a walk to actually finish before the next op.
+  assert(script.includes("queueWalking[id]"));
+  assert(script.includes("if (readNavTarget(owned))"));
+  // stop clears the whole queue.
+  assert(script.includes("mineQueues[owned.id] = []"));
+  // Glide speed is slowed to a readable trot.
+  assert(script.includes("const MOVE_SPEED = 0.3"));
 });

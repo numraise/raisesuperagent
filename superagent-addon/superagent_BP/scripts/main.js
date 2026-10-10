@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.102";
+const SCRIPT_VERSION = "0.1.103";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -166,7 +166,9 @@ const FOLLOW_RADIUS = 128;
 const TICK_RATE = 2;
 const MAINTENANCE_TICKS = 10;
 const PRESENCE_RADIUS = 1.35;
-const MOVE_SPEED = 0.45;
+// 0.45/callback (~4.5 blocks/s) zipped by too fast to see the walk cycle;
+// 0.3 (~3 blocks/s) reads as an actual trot.
+const MOVE_SPEED = 0.3;
 const GUARD_SPEED = 0.6;
 
 const CUSTOM_PRESENCE_PARTICLES = [
@@ -1315,9 +1317,13 @@ function updateMovingProperty(superagent, tick) {
       superagent.getDynamicProperty(TARGET_X_PROP) !== undefined ||
       superagent.getDynamicProperty(FOLLOW_WALK_PROP) === true ||
       superagent.getDynamicProperty(PATH_PROP) !== undefined;
+    // The queue now also carries walk/face ops, so only count it as "mining"
+    // when the op being executed (or next in line) is a real mine op.
+    const nextOp = mineQueues[id] && mineQueues[id][0];
+    const busy = typeof mineBusyUntil[id] === "number" && tick < mineBusyUntil[id];
     mining =
-      (mineQueues[id] && mineQueues[id].length > 0) ||
-      (typeof mineBusyUntil[id] === "number" && tick < mineBusyUntil[id]);
+      (busy && lastOpMode[id] !== "walk" && lastOpMode[id] !== "face") ||
+      (nextOp && nextOp.mode !== "walk" && nextOp.mode !== "face");
     const spinUntil = superagent.getDynamicProperty(SPIN_PROP);
     spinning = typeof spinUntil === "number" && tick < spinUntil;
   } catch (error) {
@@ -1779,8 +1785,11 @@ function stepDirOffset(dir) {
   return { x: 0, y: 0, z: 0 };
 }
 
-// Grid step with collision: walk one block at a time and stop at the first
-// solid block so the character cannot pass through walls.
+// "move" used to TELEPORT the whole distance instantly, so the walk animation
+// never had a chance to play. Now it enqueues a WALK op (same ordered queue as
+// mining), and the character glides there with the walk cycle visible.
+// Sequencing is preserved: a queued walk finishes (arrives or hits a wall)
+// before the next queued command runs.
 function handleStep(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
@@ -1793,13 +1802,20 @@ function handleStep(player, message) {
     count = 1;
   }
   count = Math.max(1, Math.min(64, Math.round(count)));
+  (mineQueues[owned.id] = mineQueues[owned.id] || []).push({ mode: "walk", off: off, count: count });
+}
+
+// Executed when the walk op reaches the front of the queue: compute the open
+// destination from the CURRENT position (collision-checked block by block,
+// like the old instant step) and glide there via the nav system.
+function executeWalkOp(owned, op) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
-  clearNavTarget(owned);
   clearPath(owned);
+  const off = op.off || { x: 0, y: 0, z: 0 };
   let cx = Math.floor(owned.location.x);
   let cy = Math.floor(owned.location.y);
   let cz = Math.floor(owned.location.z);
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < (op.count || 1); i++) {
     const nx = cx + off.x;
     const ny = cy + off.y;
     const nz = cz + off.z;
@@ -1810,26 +1826,31 @@ function handleStep(player, message) {
     cy = ny;
     cz = nz;
   }
-  try {
-    teleportEntityOpen(owned, { x: cx + 0.5, y: cy, z: cz + 0.5 });
-  } catch (error) {
-  }
+  setNavTarget(owned, { x: cx + 0.5, y: cy, z: cz + 0.5 });
   playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
 }
 
-// Turn the character to face a cardinal direction.
+// Turn the character to face a cardinal direction. Queued with walk/mine ops
+// so "move 10 then face east then mine" runs in program order now that walks
+// take real time.
 function handleFace(player, message) {
   const owned = ownedSuperagentForEvent(player);
   if (!owned) {
     return;
   }
   const dir = (message || "").trim();
+  if (dir !== "north" && dir !== "south" && dir !== "east" && dir !== "west") {
+    return;
+  }
+  (mineQueues[owned.id] = mineQueues[owned.id] || []).push({ mode: "face", dir: dir });
+}
+
+function executeFaceOp(owned, op) {
   const rot = { x: 0, y: 0 };
-  if (dir === "north") rot.y = 180;
-  else if (dir === "south") rot.y = 0;
-  else if (dir === "east") rot.y = -90;
-  else if (dir === "west") rot.y = 90;
-  else return;
+  if (op.dir === "north") rot.y = 180;
+  else if (op.dir === "south") rot.y = 0;
+  else if (op.dir === "east") rot.y = -90;
+  else if (op.dir === "west") rot.y = 90;
   // Stop any movement/nav/attack-spin first, otherwise navStep (or the spin)
   // re-rotates the character toward its travel target on the next tick and the
   // facing is lost — which is why "face" used to need running 2+ times.
@@ -2021,6 +2042,9 @@ function handleStop(player) {
   owned.setDynamicProperty(FOLLOW_WALK_PROP, false);
   clearNavTarget(owned);
   clearPath(owned);
+  // Abort anything still queued (walks, faces, mining) — stop means stop.
+  mineQueues[owned.id] = [];
+  queueWalking[owned.id] = false;
   playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
 }
 
@@ -2603,9 +2627,20 @@ function handleMine(player, message) {
   (mineQueues[owned.id] = mineQueues[owned.id] || []).push(op);
 }
 
-// Run the next queued mine op for a character, if it is not still busy moving.
+// Run the next queued op (walk / face / mine) for a character, one at a time,
+// in program order. A walk op holds the queue until the glide actually ends
+// (arrival or wall), so later commands start from the right position.
+const queueWalking = {};
+const lastOpMode = {};
+
 function processMineQueue(owned, tick) {
   const id = owned.id;
+  if (queueWalking[id]) {
+    if (readNavTarget(owned)) {
+      return; // still walking
+    }
+    queueWalking[id] = false;
+  }
   const queue = mineQueues[id];
   if (!queue || queue.length === 0) {
     return;
@@ -2614,6 +2649,18 @@ function processMineQueue(owned, tick) {
     return;
   }
   const op = queue.shift();
+  lastOpMode[id] = op.mode;
+  if (op.mode === "walk") {
+    executeWalkOp(owned, op);
+    queueWalking[id] = true;
+    mineBusyUntil[id] = tick + 1;
+    return;
+  }
+  if (op.mode === "face") {
+    executeFaceOp(owned, op);
+    mineBusyUntil[id] = tick + 2;
+    return;
+  }
   mineBusyUntil[id] = tick + MINE_OP_TICKS;
   executeMineOp(owned, op);
 }
