@@ -11,6 +11,19 @@
           "type": "bool",
           "default": false,
           "client_sync": true
+        },
+        "superagent:action": {
+          "type": "enum",
+          "values": [
+            "idle",
+            "walk",
+            "mine",
+            "build",
+            "combat",
+            "happy"
+          ],
+          "default": "idle",
+          "client_sync": true
         }
       }
     },

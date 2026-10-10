@@ -1658,7 +1658,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.101"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.102"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1667,7 +1667,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.101"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.102"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1816,7 +1816,7 @@ test("wolf has walk and idle animations driven by a client-synced moving propert
   assert.strictEqual(desc.animations.walk, "animation.superagent.walk");
   assert.strictEqual(desc.animations.idle, "animation.superagent.idle");
   const animate = JSON.stringify(desc.scripts.animate);
-  assert(animate.includes("superagent:moving"));
+  assert(animate.includes("superagent:action") || animate.includes("superagent:moving"));
 
   // BP entity declares the property with client_sync so the client can read it.
   const bp = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
@@ -1828,4 +1828,37 @@ test("wolf has walk and idle animations driven by a client-synced moving propert
   assert(script.includes("function updateMovingProperty"));
   assert(script.includes("updateMovingProperty(superagent, tick)"));
   assert(script.includes('setProperty("superagent:moving"'));
+});
+
+test("wolf has mine/build/combat/happy action animations driven by an enum property", () => {
+  const anims = readJson(path.join(ADDON, "superagent_RP", "animations", "superagent.animation.json"));
+  for (const name of ["mine", "build", "combat", "happy"]) {
+    const a = anims.animations["animation.superagent." + name];
+    assert(a && a.loop === true, name + " exists and loops");
+  }
+  // Mine digs with the head; happy wags the tail fast and bounces.
+  assert(anims.animations["animation.superagent.mine"].bones.head);
+  assert(anims.animations["animation.superagent.happy"].bones.tail);
+  assert(anims.animations["animation.superagent.combat"].bones.body);
+
+  const client = readJson(path.join(ADDON, "superagent_RP", "entity", "superagent.entity.json"));
+  const desc = client["minecraft:client_entity"].description;
+  for (const name of ["mine", "build", "combat", "happy", "walk", "idle"]) {
+    assert.strictEqual(desc.animations[name], "animation.superagent." + name);
+  }
+  const animate = JSON.stringify(desc.scripts.animate);
+  assert(animate.includes("superagent:action"));
+
+  const bp = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
+  const prop = bp["minecraft:entity"].description.properties["superagent:action"];
+  assert(prop && prop.type === "enum" && prop.client_sync === true);
+  assert.deepStrictEqual(prop.values, ["idle", "walk", "mine", "build", "combat", "happy"]);
+
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes('setProperty("superagent:action"'));
+  assert(script.includes("function markHappy"));
+  assert(script.includes("function markBuilding"));
+  // Builds and homes celebrate; mining drives the mine pose from the queue.
+  assert((script.match(/markHappy\(owned\)/g) || []).length >= 5);
+  assert(script.includes("markBuilding(owned)"));
 });

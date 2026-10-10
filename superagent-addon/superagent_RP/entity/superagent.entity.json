@@ -14,12 +14,20 @@
       },
       "animations": {
         "walk": "animation.superagent.walk",
-        "idle": "animation.superagent.idle"
+        "idle": "animation.superagent.idle",
+        "mine": "animation.superagent.mine",
+        "build": "animation.superagent.build",
+        "combat": "animation.superagent.combat",
+        "happy": "animation.superagent.happy"
       },
       "scripts": {
         "animate": [
-          { "walk": "q.property('superagent:moving')" },
-          { "idle": "!q.property('superagent:moving')" }
+          { "walk": "q.property('superagent:action') == 'walk'" },
+          { "idle": "q.property('superagent:action') == 'idle'" },
+          { "mine": "q.property('superagent:action') == 'mine'" },
+          { "build": "q.property('superagent:action') == 'build'" },
+          { "combat": "q.property('superagent:action') == 'combat'" },
+          { "happy": "q.property('superagent:action') == 'happy'" }
         ]
       },
       "render_controllers": ["controller.render.superagent"]

@@ -27,6 +27,92 @@
 				}
 			}
 		},
+		"animation.superagent.mine": {
+			"loop": true,
+			"bones": {
+				"head": {
+					"rotation": ["20 + math.sin(query.anim_time * 700) * 18", 0, 0]
+				},
+				"leg_fl": {
+					"rotation": ["math.sin(query.anim_time * 700) * 25", 0, 0]
+				},
+				"leg_fr": {
+					"rotation": ["-math.sin(query.anim_time * 700) * 25", 0, 0]
+				},
+				"tail": {
+					"rotation": [0, "math.sin(query.anim_time * 500) * 10", 0]
+				},
+				"body": {
+					"position": [0, "math.abs(math.sin(query.anim_time * 700)) * 0.3", 0]
+				}
+			}
+		},
+		"animation.superagent.build": {
+			"loop": true,
+			"bones": {
+				"head": {
+					"rotation": ["math.sin(query.anim_time * 500) * 12", 0, 0]
+				},
+				"leg_fl": {
+					"rotation": ["math.sin(query.anim_time * 500) * 30 - 15", 0, 0]
+				},
+				"leg_fr": {
+					"rotation": ["-math.sin(query.anim_time * 500) * 30 - 15", 0, 0]
+				},
+				"tail": {
+					"rotation": [0, "math.sin(query.anim_time * 600) * 18", 0]
+				},
+				"body": {
+					"position": [0, "math.abs(math.sin(query.anim_time * 500)) * 0.4", 0]
+				}
+			}
+		},
+		"animation.superagent.combat": {
+			"loop": true,
+			"bones": {
+				"body": {
+					"position": [0, -0.6, 0]
+				},
+				"head": {
+					"rotation": ["8 + math.sin(query.anim_time * 1000) * 2", "math.sin(query.anim_time * 900) * 3", 0]
+				},
+				"leg_fl": {
+					"rotation": [-12, 0, 0]
+				},
+				"leg_fr": {
+					"rotation": [-12, 0, 0]
+				},
+				"leg_bl": {
+					"rotation": [12, 0, 0]
+				},
+				"leg_br": {
+					"rotation": [12, 0, 0]
+				},
+				"tail": {
+					"rotation": [-20, "math.sin(query.anim_time * 300) * 6", 0]
+				}
+			}
+		},
+		"animation.superagent.happy": {
+			"loop": true,
+			"bones": {
+				"body": {
+					"position": [0, "math.abs(math.sin(query.anim_time * 550)) * 1.2", 0]
+				},
+				"head": {
+					"rotation": ["-6 + math.sin(query.anim_time * 550) * 4", 0, "math.sin(query.anim_time * 275) * 6"]
+				},
+				"tail": {
+					"rotation": [0, "math.sin(query.anim_time * 1200) * 30", 0]
+				},
+				"leg_fl": {
+					"rotation": ["math.sin(query.anim_time * 550) * 15", 0, 0]
+				},
+				"leg_fr": {
+					"rotation": ["-math.sin(query.anim_time * 550) * 15", 0, 0]
+				}
+			}
+		},
 		"animation.superagent.idle": {
 			"loop": true,
 			"bones": {

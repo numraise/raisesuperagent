@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.101";
+const SCRIPT_VERSION = "0.1.102";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1283,24 +1283,57 @@ function rescueIfBuried(superagent) {
   }
 }
 
-// Drive the walk/idle animation. The character moves by scripted teleports,
-// so query.ground_speed is useless client-side; instead the script publishes a
-// client-synced entity property ("superagent:moving") that the resource pack's
-// animation controller reads: true -> walk cycle, false -> idle tail wag.
+// Drive the walk/idle/mine/build/combat/happy animations. The character moves
+// by scripted teleports, so query.ground_speed is useless client-side; instead
+// the script publishes a client-synced enum property ("superagent:action")
+// that the resource pack's animate scripts read to pick the right animation.
+const happyUntilMs = {};
+const buildUntilMs = {};
+
+function markHappy(superagent, ms) {
+  try {
+    happyUntilMs[superagent.id] = Date.now() + (ms || 2000);
+  } catch (error) {
+  }
+}
+
+function markBuilding(superagent, ms) {
+  try {
+    buildUntilMs[superagent.id] = Date.now() + (ms || 1500);
+  } catch (error) {
+  }
+}
+
 function updateMovingProperty(superagent, tick) {
+  const id = superagent.id;
+  const now = Date.now();
   let moving = false;
+  let mining = false;
+  let spinning = false;
   try {
     moving =
       superagent.getDynamicProperty(TARGET_X_PROP) !== undefined ||
       superagent.getDynamicProperty(FOLLOW_WALK_PROP) === true ||
-      superagent.getDynamicProperty(PATH_PROP) !== undefined ||
-      (mineQueues[superagent.id] && mineQueues[superagent.id].length > 0) ||
-      (typeof mineBusyUntil[superagent.id] === "number" && tick < mineBusyUntil[superagent.id]);
+      superagent.getDynamicProperty(PATH_PROP) !== undefined;
+    mining =
+      (mineQueues[id] && mineQueues[id].length > 0) ||
+      (typeof mineBusyUntil[id] === "number" && tick < mineBusyUntil[id]);
+    const spinUntil = superagent.getDynamicProperty(SPIN_PROP);
+    spinning = typeof spinUntil === "number" && tick < spinUntil;
   } catch (error) {
   }
+  let action = "idle";
+  if (happyUntilMs[id] && happyUntilMs[id] > now) action = "happy";
+  else if (mining) action = "mine";
+  else if (buildUntilMs[id] && buildUntilMs[id] > now) action = "build";
+  else if (spinning) action = "combat";
+  else if (moving) action = "walk";
   try {
-    if (superagent.getProperty("superagent:moving") !== !!moving) {
-      superagent.setProperty("superagent:moving", !!moving);
+    if (superagent.getProperty("superagent:moving") !== (moving || mining)) {
+      superagent.setProperty("superagent:moving", moving || mining);
+    }
+    if (superagent.getProperty("superagent:action") !== action) {
+      superagent.setProperty("superagent:action", action);
     }
   } catch (error) {
   }
@@ -2013,6 +2046,7 @@ function handleSetHome(player, message) {
     player.setDynamicProperty(HOME_Y_PROP, Math.floor(source.y));
     player.setDynamicProperty(HOME_Z_PROP, Math.floor(source.z));
     playDogSound(owned, "happy", { volume: 0.3, pitch: 1.2 });
+    markHappy(owned);
     sendFeedback(player, "§aSuperagent: เซ็ตบ้านแล้วที่ " + Math.floor(source.x) + " " + Math.floor(source.y) + " " + Math.floor(source.z));
   } catch (error) {
   }
@@ -2043,6 +2077,7 @@ function handleGoHome(player, message) {
   try {
     teleportEntityOpen(owned, { x, y, z });
     playDogSound(owned, "move", { volume: 0.45, pitch: 1.1 });
+    markHappy(owned);
     sendFeedback(player, "§aSuperagent: กลับบ้านแล้วที่ " + x + " " + y + " " + z);
   } catch (error) {
   }
@@ -2295,6 +2330,7 @@ function handleBuild(player, message) {
   if (!cmd) {
     return;
   }
+  markBuilding(owned);
   try {
     if (typeof owned.runCommand === "function") {
       owned.runCommand(cmd);
@@ -2408,6 +2444,7 @@ function handleShape(player, message) {
       );
     }
     stepOutOfShape(owned, ox, oy, oz);
+    markHappy(owned);
     sendFeedback(player, "§aSuperagent: สร้างพีระมิดขนาด " + size + " เสร็จแล้ว");
     playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
     return;
@@ -2425,6 +2462,7 @@ function handleShape(player, message) {
       );
     }
     stepOutOfShape(owned, ox, oy, oz);
+    markHappy(owned);
     sendFeedback(player, "§aSuperagent: สร้างวงกลมทึบรัศมี " + radius + " เสร็จแล้ว");
     playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
     return;
@@ -2451,6 +2489,7 @@ function handleShape(player, message) {
       }
     }
     stepOutOfShape(owned, ox, oy, oz);
+    markHappy(owned);
     sendFeedback(player, "§aSuperagent: สร้างวงกลมรัศมี " + radius + " เสร็จแล้ว");
     playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
     return;
@@ -2485,6 +2524,7 @@ function handleShape(player, message) {
       runCommandSafe(dim, "fill " + x + " " + (y + 1) + " " + z + " " + x + " " + (y + 2) + " " + z + " air");
     }
     stepOutOfShape(owned, ox, oy, oz);
+    markHappy(owned);
     sendFeedback(player, "§aSuperagent: สร้างบันได " + steps + " ขั้น (" + dir + ") เสร็จแล้ว");
     playDogSound(owned, "happy", { volume: 0.35, pitch: 1.15 });
     return;
