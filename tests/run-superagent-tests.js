@@ -1660,7 +1660,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.104"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.105"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1669,7 +1669,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.104"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.105"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1893,4 +1893,14 @@ test("glide steps use raw fractional positions (no more walking in place)", () =
   assert(!nav.includes("teleportEntityOpen(superagent, { x: next.x"));
   // Arrival still settles on the block center.
   assert(nav.includes("teleportEntityOpen(superagent, target)"));
+});
+
+test("walk animation plays only when the character actually moved (idle stands still)", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  const fn = script.slice(script.indexOf("function updateMovingProperty"), script.indexOf("function tickSuperagent"));
+  // Movement is detected from real displacement since the last tick, not from
+  // follow/nav flags (which kept legs cycling in place while standing).
+  assert(fn.includes("lastTickPos"));
+  assert(fn.includes("dx * dx + dy * dy + dz * dz"));
+  assert(!fn.includes("FOLLOW_WALK_PROP) === true ||"));
 });

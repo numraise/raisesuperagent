@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.104";
+const SCRIPT_VERSION = "0.1.105";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1315,6 +1315,8 @@ function markBuilding(superagent, ms) {
   }
 }
 
+const lastTickPos = {};
+
 function updateMovingProperty(superagent, tick) {
   const id = superagent.id;
   const now = Date.now();
@@ -1322,10 +1324,18 @@ function updateMovingProperty(superagent, tick) {
   let mining = false;
   let spinning = false;
   try {
-    moving =
-      superagent.getDynamicProperty(TARGET_X_PROP) !== undefined ||
-      superagent.getDynamicProperty(FOLLOW_WALK_PROP) === true ||
-      superagent.getDynamicProperty(PATH_PROP) !== undefined;
+    // "walk" plays only when the character ACTUALLY traveled since the last
+    // tick. Flag-based detection (nav target / follow mode) kept the legs
+    // cycling in place whenever follow was on but the player stood still.
+    const loc = superagent.location;
+    const prev = lastTickPos[id];
+    lastTickPos[id] = { x: loc.x, y: loc.y, z: loc.z };
+    if (prev) {
+      const dx = loc.x - prev.x;
+      const dy = loc.y - prev.y;
+      const dz = loc.z - prev.z;
+      moving = (dx * dx + dy * dy + dz * dz) > 0.01;
+    }
     // The queue now also carries walk/face ops, so only count it as "mining"
     // when the op being executed (or next in line) is a real mine op.
     const nextOp = mineQueues[id] && mineQueues[id][0];
