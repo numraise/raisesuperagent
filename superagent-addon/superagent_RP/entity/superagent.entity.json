@@ -12,6 +12,16 @@
       "geometry": {
         "default": "geometry.superagent"
       },
+      "animations": {
+        "walk": "animation.superagent.walk",
+        "idle": "animation.superagent.idle"
+      },
+      "scripts": {
+        "animate": [
+          { "walk": "q.property('superagent:moving')" },
+          { "idle": "!q.property('superagent:moving')" }
+        ]
+      },
       "render_controllers": ["controller.render.superagent"]
     }
   }

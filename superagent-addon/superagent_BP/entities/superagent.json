@@ -5,11 +5,22 @@
       "identifier": "superagent:superagent",
       "is_spawnable": true,
       "is_summonable": true,
-      "is_experimental": false
+      "is_experimental": false,
+      "properties": {
+        "superagent:moving": {
+          "type": "bool",
+          "default": false,
+          "client_sync": true
+        }
+      }
     },
     "components": {
       "minecraft:type_family": {
-        "family": ["superagent", "agent_helper", "utility"]
+        "family": [
+          "superagent",
+          "agent_helper",
+          "utility"
+        ]
       },
       "minecraft:health": {
         "value": 2048,

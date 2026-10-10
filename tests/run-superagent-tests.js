@@ -1428,7 +1428,14 @@ test("superagent resource pack renders the character as a cute wolf (head, body,
   }
   // Rig has the bones an animation would need.
   assert(bones.root && bones.body && bones.head && bones.tail);
-  assert.strictEqual(bones.body.cubes.length, 5); // torso + 4 legs
+  // Each leg is its own bone (pivot at the hip) so the walk cycle can swing it.
+  assert(bones.leg_fl && bones.leg_fr && bones.leg_bl && bones.leg_br);
+  for (const leg of ["leg_fl", "leg_fr", "leg_bl", "leg_br"]) {
+    assert.strictEqual(bones[leg].parent, "body");
+    assert.strictEqual(bones[leg].cubes.length, 1);
+    assert.strictEqual(bones[leg].pivot[1], 5);
+  }
+  assert.strictEqual(bones.body.cubes.length, 1); // torso only
   assert.strictEqual(bones.head.cubes.length, 4); // head + snout + 2 ears
   assert.strictEqual(bones.tail.cubes.length, 1);
   // Tail is raised (rotated), not a straight block.
@@ -1651,7 +1658,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.100"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.101"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1660,7 +1667,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.100"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.101"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1786,4 +1793,39 @@ test("staircase is a real diagonal staircase in ALL directions (up/down follow f
   assert(fn.includes("oz + f.z * i"));
   // Headroom is cleared so the stair is walkable.
   assert(fn.includes('" air"'));
+});
+
+test("wolf has walk and idle animations driven by a client-synced moving property", () => {
+  const anims = readJson(path.join(ADDON, "superagent_RP", "animations", "superagent.animation.json"));
+  const walk = anims.animations["animation.superagent.walk"];
+  const idle = anims.animations["animation.superagent.idle"];
+  assert(walk && walk.loop === true);
+  assert(idle && idle.loop === true);
+  // Walk swings all four legs; diagonal pairs move in opposite phase.
+  for (const leg of ["leg_fl", "leg_fr", "leg_bl", "leg_br"]) {
+    assert(walk.bones[leg], leg + " animated");
+  }
+  assert(walk.bones.leg_fl.rotation[0].startsWith("math.sin"));
+  assert(walk.bones.leg_fr.rotation[0].startsWith("-math.sin"));
+  // Tail wags in both states.
+  assert(walk.bones.tail && idle.bones.tail);
+
+  // Client entity wires the animations to the moving property.
+  const client = readJson(path.join(ADDON, "superagent_RP", "entity", "superagent.entity.json"));
+  const desc = client["minecraft:client_entity"].description;
+  assert.strictEqual(desc.animations.walk, "animation.superagent.walk");
+  assert.strictEqual(desc.animations.idle, "animation.superagent.idle");
+  const animate = JSON.stringify(desc.scripts.animate);
+  assert(animate.includes("superagent:moving"));
+
+  // BP entity declares the property with client_sync so the client can read it.
+  const bp = readJson(path.join(ADDON, "superagent_BP", "entities", "superagent.json"));
+  const prop = bp["minecraft:entity"].description.properties["superagent:moving"];
+  assert(prop && prop.type === "bool" && prop.client_sync === true);
+
+  // The script publishes the property every tick from real movement state.
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  assert(script.includes("function updateMovingProperty"));
+  assert(script.includes("updateMovingProperty(superagent, tick)"));
+  assert(script.includes('setProperty("superagent:moving"'));
 });

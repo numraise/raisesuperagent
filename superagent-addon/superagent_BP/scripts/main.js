@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.100";
+const SCRIPT_VERSION = "0.1.101";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1283,6 +1283,29 @@ function rescueIfBuried(superagent) {
   }
 }
 
+// Drive the walk/idle animation. The character moves by scripted teleports,
+// so query.ground_speed is useless client-side; instead the script publishes a
+// client-synced entity property ("superagent:moving") that the resource pack's
+// animation controller reads: true -> walk cycle, false -> idle tail wag.
+function updateMovingProperty(superagent, tick) {
+  let moving = false;
+  try {
+    moving =
+      superagent.getDynamicProperty(TARGET_X_PROP) !== undefined ||
+      superagent.getDynamicProperty(FOLLOW_WALK_PROP) === true ||
+      superagent.getDynamicProperty(PATH_PROP) !== undefined ||
+      (mineQueues[superagent.id] && mineQueues[superagent.id].length > 0) ||
+      (typeof mineBusyUntil[superagent.id] === "number" && tick < mineBusyUntil[superagent.id]);
+  } catch (error) {
+  }
+  try {
+    if (superagent.getProperty("superagent:moving") !== !!moving) {
+      superagent.setProperty("superagent:moving", !!moving);
+    }
+  } catch (error) {
+  }
+}
+
 function tickSuperagent(player, superagent, tick) {
   if (tick % MAINTENANCE_TICKS === 0) {
     configureSuperagent(superagent, player);
@@ -1293,6 +1316,7 @@ function tickSuperagent(player, superagent, tick) {
   processMineQueue(superagent, tick);
   navStep(player, superagent);
   spinIfActive(superagent, tick);
+  updateMovingProperty(superagent, tick);
   if (tick % MAINTENANCE_TICKS === 0) {
     const status = currentStatus(superagent);
     applyLabelWithStatus(superagent, status);
