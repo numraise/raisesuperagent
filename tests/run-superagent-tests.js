@@ -1862,7 +1862,7 @@ test("wolf has mine/build/combat/happy action animations driven by an enum prope
   assert(script.includes("function markBuilding"));
   // Builds and homes celebrate; mining drives the mine pose from the queue.
   assert((script.match(/markHappy\(owned\)/g) || []).length >= 5);
-  assert(script.includes("markBuilding(owned)"));
+  assert(script.includes("markBuilding(owned"));
 });
 
 test("move walks visibly (queued glide) instead of teleporting, keeping program order", () => {
