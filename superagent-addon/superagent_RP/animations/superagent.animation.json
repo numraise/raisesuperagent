@@ -51,19 +51,19 @@
 			"loop": true,
 			"bones": {
 				"head": {
-					"rotation": ["math.sin(query.anim_time * 500) * 12", 0, 0]
+					"rotation": ["math.sin(query.anim_time * 550) * 22", 0, 0]
 				},
 				"leg_fl": {
-					"rotation": ["math.sin(query.anim_time * 500) * 30 - 15", 0, 0]
+					"rotation": ["math.sin(query.anim_time * 550) * 45 - 20", 0, 0]
 				},
 				"leg_fr": {
-					"rotation": ["-math.sin(query.anim_time * 500) * 30 - 15", 0, 0]
+					"rotation": ["-math.sin(query.anim_time * 550) * 45 - 20", 0, 0]
 				},
 				"tail": {
-					"rotation": [0, "math.sin(query.anim_time * 600) * 18", 0]
+					"rotation": [0, "math.sin(query.anim_time * 700) * 22", 0]
 				},
 				"body": {
-					"position": [0, "math.abs(math.sin(query.anim_time * 500)) * 0.4", 0]
+					"position": [0, "math.abs(math.sin(query.anim_time * 550)) * 0.8", 0]
 				}
 			}
 		},

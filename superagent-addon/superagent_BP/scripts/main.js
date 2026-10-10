@@ -130,7 +130,7 @@ function findPath(start, goal, isBlocked, maxNodes, maxRange) {
   return [];
 }
 
-const SCRIPT_VERSION = "0.1.106";
+const SCRIPT_VERSION = "0.1.107";
 const EXTENSION_IMPORT_URL =
   "https://github.com/numraise/raisesuperagent#superagent-" + SCRIPT_VERSION;
 const SUPER_AGENT_ID = "superagent:superagent";
@@ -1317,6 +1317,7 @@ function markBuilding(superagent, ms) {
 
 const lastTickPos = {};
 const lastActionApplied = {};
+const combatUntilMs = {};
 
 function updateMovingProperty(superagent, tick) {
   const id = superagent.id;
@@ -1352,7 +1353,7 @@ function updateMovingProperty(superagent, tick) {
   if (happyUntilMs[id] && happyUntilMs[id] > now) action = "happy";
   else if (mining) action = "mine";
   else if (buildUntilMs[id] && buildUntilMs[id] > now) action = "build";
-  else if (spinning) action = "combat";
+  else if (spinning || (combatUntilMs[id] && combatUntilMs[id] > now)) action = "combat";
   else if (moving) action = "walk";
   try {
     if (superagent.getProperty("superagent:moving") !== (moving || mining)) {
@@ -1393,7 +1394,13 @@ function tickSuperagent(player, superagent, tick) {
   }
   // No idle particles: the character is shown by its model + name tag only.
   if (combatEnabled()) {
-    attackAround(superagent, tick);
+    // Auto-combat never set the spin flag, so the combat pose never played
+    // under "auto guard". Track real hits instead: any landed attack keeps the
+    // combat stance up for a short window.
+    const hits = attackAround(superagent, tick);
+    if (hits > 0) {
+      combatUntilMs[superagent.id] = Date.now() + 1500;
+    }
   }
 }
 
@@ -2389,7 +2396,13 @@ function handleBuild(player, message) {
   if (!cmd) {
     return;
   }
-  markBuilding(owned);
+  // Build pose for ~2s, then a short happy wag — a single fill finishes
+  // instantly, so without the delayed celebrate the pose was easy to miss.
+  markBuilding(owned, 2000);
+  try {
+    system.runTimeout(() => markHappy(owned, 1500), 40);
+  } catch (error) {
+  }
   try {
     if (typeof owned.runCommand === "function") {
       owned.runCommand(cmd);

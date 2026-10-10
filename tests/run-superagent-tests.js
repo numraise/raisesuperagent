@@ -1660,7 +1660,7 @@ test("superagent toolbox hides legacy Agent command mirrors", () => {
 
 test("extension announces its version to the behavior pack before the first command", () => {
   const source = fs.readFileSync(SOURCE, "utf8");
-  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.106"'));
+  assert(source.includes('const SUPERAGENT_EXT_VERSION = "0.1.107"'));
   assert(source.includes("scriptevent superagent:hello"));
   // Sent once, from runAtAgent, so it always precedes any real command.
   assert(source.includes("sendVersionHello()"));
@@ -1669,7 +1669,7 @@ test("extension announces its version to the behavior pack before the first comm
 
 test("behavior pack warns loudly on extension/addon version mismatch (the #1 bug loop)", () => {
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
-  assert(script.includes('const SCRIPT_VERSION = "0.1.106"'));
+  assert(script.includes('const SCRIPT_VERSION = "0.1.107"'));
   assert(script.includes('"superagent:hello"'));
   assert(script.includes("function handleHello"));
   assert(script.includes("function warnIfStaleExtension"));
@@ -1924,4 +1924,16 @@ test("action animations are driven by mark_variant events (Education-safe)", () 
   }
   const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
   assert(script.includes('triggerEvent("superagent:action_" + action)'));
+});
+
+test("auto-guard combat and single-command builds trigger visible poses", () => {
+  const script = fs.readFileSync(path.join(ADDON, "superagent_BP", "scripts", "main.js"), "utf8");
+  // Auto-combat hits keep the combat stance up (spin flag alone never fired
+  // under auto guard).
+  assert(script.includes("const hits = attackAround(superagent, tick)"));
+  assert(script.includes("combatUntilMs[superagent.id] = Date.now() + 1500"));
+  assert(script.includes("combatUntilMs[id] && combatUntilMs[id] > now"));
+  // Builds hold the pose ~2s then celebrate, so instant fills are visible.
+  assert(script.includes("markBuilding(owned, 2000)"));
+  assert(script.includes("system.runTimeout(() => markHappy(owned, 1500), 40)"));
 });
